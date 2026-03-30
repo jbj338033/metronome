@@ -9,11 +9,11 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
-    "@metronome/types": "workspace:*",
-    "hono": "^4.7.10",
     "@hono/node-server": "^1.14.1",
     "@hono/node-ws": "^1.1.1",
+    "@metronome/types": "workspace:*",
     "better-sqlite3": "^11.9.1",
+    "hono": "^4.7.10",
     "uuid": "^11.1.0",
     "yaml": "^2.7.1"
   },
