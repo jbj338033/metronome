@@ -57,8 +57,10 @@ class AgentManagerImpl {
     const proc = spawn(cmd, args, {
       cwd: opts.cwd,
       env: { ...process.env, ...env },
-      stdio: ['pipe', 'pipe', 'pipe'],
+      stdio: ['ignore', 'pipe', 'pipe'],
     })
+
+    // stdin은 ignore — prompt는 args로 전달, stdin 경고 방지
 
     const running: RunningAgent = {
       proc,
