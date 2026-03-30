@@ -1,0 +1,7 @@
+name: quick
+timeout: 600
+
+steps:
+  - id: execute
+    blueprint: coder
+    timeout: 600
