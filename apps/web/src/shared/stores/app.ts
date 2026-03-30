@@ -3,9 +3,17 @@ import type { Task, Agent, ServerMessage } from '@metronome/types'
 import { api } from '../api/client'
 import { wsClient } from '../api/ws'
 
+interface Project {
+  id: string
+  name: string
+  path: string
+}
+
 interface AppState {
   tasks: Task[]
   agents: Agent[]
+  projects: Project[]
+  activeProjectId: string | null
   runningAgents: Array<{ agentId: string; adapterId: string; taskId: string | null; pid: number }>
   agentOutput: Map<string, string[]>
   initialized: boolean
@@ -13,19 +21,23 @@ interface AppState {
   init: () => Promise<void>
   fetchTasks: () => Promise<void>
   fetchAgents: () => Promise<void>
+  fetchProjects: () => Promise<void>
+  setActiveProject: (id: string | null) => void
   handleWsMessage: (msg: ServerMessage) => void
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
   tasks: [],
   agents: [],
+  projects: [],
+  activeProjectId: null,
   runningAgents: [],
   agentOutput: new Map(),
   initialized: false,
 
   async init() {
     if (get().initialized) return
-    await Promise.all([get().fetchTasks(), get().fetchAgents()])
+    await Promise.all([get().fetchTasks(), get().fetchAgents(), get().fetchProjects()])
 
     const running = await api.agents.running()
     set({ runningAgents: running, initialized: true })
@@ -47,6 +59,16 @@ export const useAppStore = create<AppState>((set, get) => ({
   async fetchAgents() {
     const agents = await api.agents.list()
     set({ agents })
+  },
+
+  async fetchProjects() {
+    const projects = await api.projects.list()
+    set({ projects })
+  },
+
+  setActiveProject(id: string | null) {
+    set({ activeProjectId: id })
+    get().fetchTasks()
   },
 
   handleWsMessage(msg: ServerMessage) {
