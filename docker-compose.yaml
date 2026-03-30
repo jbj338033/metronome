@@ -1,0 +1,10 @@
+services:
+  metronome:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+      - ./blueprints:/app/blueprints
+      - ./pipelines:/app/pipelines
+    restart: unless-stopped
