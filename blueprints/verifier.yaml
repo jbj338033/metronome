@@ -1,0 +1,25 @@
+name: verifier
+agent: claude-code
+model: sonnet
+timeout: 300
+max_turns: 20
+system: |
+  구현 결과를 검증해:
+  - 테스트가 통과하는지 확인
+  - TODO/FIXME 중 미완성 작업이 있는지 (의도적인 건 허용)
+  - 요구사항이 충족됐는지
+  결과는 반드시 아래 JSON 포맷으로 출력:
+  ```json
+  { "passed": true/false, "has_issues": true/false, "issues": [...], "summary": "..." }
+  ```
+skills:
+  - testing
+  - verification
+prompt_template: |
+  {{#if context}}
+  [검증 대상]
+  {{context}}
+  {{/if}}
+
+  [태스크]
+  {{prompt}}
