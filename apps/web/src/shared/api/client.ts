@@ -33,6 +33,26 @@ export const api = {
     update: (id: string, body: any) => request<any>(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
     delete: (id: string) => request<void>(`/tasks/${id}`, { method: 'DELETE' }),
   },
+  projects: {
+    list: () => request<any[]>('/projects'),
+    create: (body: { name: string; path: string }) => request<{ id: string }>('/projects', { method: 'POST', body: JSON.stringify(body) }),
+    delete: (id: string) => request<void>(`/projects/${id}`, { method: 'DELETE' }),
+  },
+  blueprints: {
+    list: () => request<any[]>('/blueprints'),
+    get: (name: string) => request<any>(`/blueprints/${name}`),
+    save: (name: string, body: any) => request<any>(`/blueprints/${name}`, { method: 'PUT', body: JSON.stringify(body) }),
+    delete: (name: string) => request<void>(`/blueprints/${name}`, { method: 'DELETE' }),
+  },
+  pipelines: {
+    list: () => request<any[]>('/pipelines'),
+    get: (name: string) => request<any>(`/pipelines/${name}`),
+    run: (name: string, body: { prompt: string; cwd: string; project_id?: string }) => request<{ runId: string }>(`/pipelines/${name}/run`, { method: 'POST', body: JSON.stringify(body) }),
+    cancelRun: (id: string) => request<any>(`/pipelines/runs/${id}/cancel`, { method: 'POST' }),
+    approveStep: (runId: string, stepId: string) => request<any>(`/pipelines/runs/${runId}/approve/${stepId}`, { method: 'POST' }),
+    getRun: (id: string) => request<any>(`/pipelines/runs/${id}`),
+    getRunSteps: (id: string) => request<any[]>(`/pipelines/runs/${id}/steps`),
+  },
   chat: {
     send: (body: any) => request<{ taskId: string; messageId: string; agentId: string | null }>('/chat', { method: 'POST', body: JSON.stringify(body) }),
     message: (body: any) => request<{ messageId: string }>('/chat/message', { method: 'POST', body: JSON.stringify(body) }),
