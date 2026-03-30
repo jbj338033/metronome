@@ -1,0 +1,24 @@
+name: coder
+agent: claude-code
+model: sonnet
+timeout: 600
+max_turns: 50
+system: |
+  코드를 작성하고 테스트까지 돌려.
+  변경사항은 최소화하고, 기존 패턴을 따라.
+  결과는 반드시 아래 JSON 포맷으로 출력:
+  ```json
+  { "files_changed": [...], "summary": "..." }
+  ```
+skills:
+  - coding
+  - testing
+  - file-management
+prompt_template: |
+  {{#if context}}
+  [이전 스텝 결과]
+  {{context}}
+  {{/if}}
+
+  [태스크]
+  {{prompt}}

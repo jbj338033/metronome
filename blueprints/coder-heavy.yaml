@@ -1,0 +1,25 @@
+name: coder-heavy
+agent: claude-code
+model: opus
+timeout: 900
+max_turns: 80
+system: |
+  복잡한 코드 작업을 수행해.
+  아키텍처 결정, 대규모 리팩토링, 멀티파일 변경 가능.
+  결과는 반드시 아래 JSON 포맷으로 출력:
+  ```json
+  { "files_changed": [...], "summary": "..." }
+  ```
+skills:
+  - coding
+  - testing
+  - architecture
+  - file-management
+prompt_template: |
+  {{#if context}}
+  [이전 스텝 결과]
+  {{context}}
+  {{/if}}
+
+  [태스크]
+  {{prompt}}
