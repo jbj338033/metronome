@@ -17,6 +17,8 @@ export const claudeAdapter: AgentAdapter = {
     const args = [
       '--print',
       '--output-format', 'stream-json',
+      '--verbose',
+      '--dangerously-skip-permissions',
     ]
 
     if (opts.sessionId) {
