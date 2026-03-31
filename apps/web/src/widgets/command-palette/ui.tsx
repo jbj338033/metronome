@@ -56,7 +56,7 @@ export function CommandPalette() {
       label: `Task: ${t.title}`,
       hint: t.status,
       group: 'task',
-      action: () => navigate(`/tasks/${t.id}`),
+      action: () => navigate('/history'),
     }))
 
     return [...base, ...taskCmds]
