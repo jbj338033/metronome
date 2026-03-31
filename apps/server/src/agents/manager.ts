@@ -3,6 +3,7 @@ import { v4 as uuid } from 'uuid'
 import { getDb } from '../db'
 import { getAdapter } from './registry'
 import { broadcast } from '../ws'
+import { events } from '../events'
 import type { AgentSpawnOptions, AgentStreamEvent } from './adapter'
 
 interface RunningAgent {
@@ -24,6 +25,7 @@ class AgentManagerImpl {
     model?: string
     blueprint?: string
     sessionId?: string
+    resume?: boolean
     taskId?: string
     timeout?: number
     systemPrompt?: string
@@ -36,6 +38,7 @@ class AgentManagerImpl {
       prompt: opts.prompt,
       model: opts.model,
       sessionId: opts.sessionId || uuid(),
+      resume: opts.resume,
       cwd: opts.cwd,
       timeout: opts.timeout || 300_000,
       systemPrompt: opts.systemPrompt,
@@ -156,6 +159,12 @@ class AgentManagerImpl {
         exitCode: code,
         taskId: running.taskId,
       })
+
+      if (code === 0) {
+        events.emit('agent:completed', agentId, code)
+      } else {
+        events.emit('agent:failed', agentId, code)
+      }
     })
 
     if (proc.pid) {
@@ -225,6 +234,26 @@ class AgentManagerImpl {
 
   getOutput(agentId: string) {
     return this.processes.get(agentId)?.buffer || ''
+  }
+
+  resume(previousAgentId: string, prompt: string): string {
+    const db = getDb()
+    const agent = db.prepare(
+      'SELECT type_id, session_id, cwd, model, blueprint FROM agents WHERE id = ?',
+    ).get(previousAgentId) as { type_id: string; session_id: string | null; cwd: string; model: string; blueprint: string } | undefined
+
+    if (!agent?.session_id) throw new Error('no session to resume')
+
+    return this.spawn({
+      typeId: agent.type_id,
+      prompt,
+      cwd: agent.cwd,
+      model: agent.model,
+      blueprint: agent.blueprint,
+      sessionId: agent.session_id,
+      resume: true,
+      timeout: 300_000,
+    })
   }
 
   recover() {
