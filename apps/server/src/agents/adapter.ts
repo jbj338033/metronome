@@ -2,6 +2,7 @@ export interface AgentSpawnOptions {
   prompt: string
   model?: string
   sessionId?: string
+  resume?: boolean
   cwd?: string
   timeout?: number
   systemPrompt?: string

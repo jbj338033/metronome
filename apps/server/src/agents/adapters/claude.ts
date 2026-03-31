@@ -21,7 +21,9 @@ export const claudeAdapter: AgentAdapter = {
       '--dangerously-skip-permissions',
     ]
 
-    if (opts.sessionId) {
+    if (opts.resume && opts.sessionId) {
+      args.push('--resume', opts.sessionId)
+    } else if (opts.sessionId) {
       args.push('--session-id', opts.sessionId)
     }
 
