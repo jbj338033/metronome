@@ -26,6 +26,9 @@ importers:
       '@metronome/types':
         specifier: workspace:*
         version: link:../../packages/types
+      ajv:
+        specifier: ^8.18.0
+        version: 8.18.0
       better-sqlite3:
         specifier: ^11.9.1
         version: 11.10.0
