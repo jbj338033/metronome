@@ -87,4 +87,9 @@ export class DagScheduler {
   getAllStepIds(): string[] {
     return this.steps.map((s) => s.id)
   }
+
+  rebuild(newSteps: PipelineStep[]) {
+    this.steps = newSteps
+    this.validateDag()
+  }
 }
