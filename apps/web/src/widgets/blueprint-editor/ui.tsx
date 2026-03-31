@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { api } from '@/shared/api/client'
 import { Input } from '@/shared/ui/input'
 import { Textarea } from '@/shared/ui/textarea'
@@ -21,9 +22,15 @@ export function BlueprintEditor({ blueprint, onSave }: BlueprintEditorProps) {
 
   async function handleSave() {
     setSaving(true)
-    await api.blueprints.save(form.name, form)
-    setSaving(false)
-    onSave()
+    try {
+      await api.blueprints.save(form.name, form)
+      toast.success('blueprint saved')
+      onSave()
+    } catch {
+      toast.error('failed to save blueprint')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -57,6 +64,7 @@ export function BlueprintEditor({ blueprint, onSave }: BlueprintEditorProps) {
             type="number"
             value={form.timeout}
             onChange={(e) => update('timeout', Number(e.target.value))}
+            min={1}
             className="h-8 text-xs"
           />
         </div>
@@ -66,6 +74,7 @@ export function BlueprintEditor({ blueprint, onSave }: BlueprintEditorProps) {
             type="number"
             value={form.max_turns || ''}
             onChange={(e) => update('max_turns', e.target.value ? Number(e.target.value) : undefined)}
+            min={1}
             className="h-8 text-xs"
           />
         </div>
