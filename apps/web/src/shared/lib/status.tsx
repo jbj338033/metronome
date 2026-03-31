@@ -7,6 +7,7 @@ import {
   MinusCircle,
   AlertTriangle,
   Pause,
+  RotateCw,
 } from 'lucide-react'
 import { cn } from './cn'
 
@@ -17,6 +18,7 @@ const config: Record<string, { icon: LucideIcon; color: string; spin?: boolean }
   failed: { icon: XCircle, color: 'text-red-400' },
   cancelled: { icon: MinusCircle, color: 'text-muted-foreground/60' },
   interrupted: { icon: AlertTriangle, color: 'text-yellow-400' },
+  retrying: { icon: RotateCw, color: 'text-yellow-400', spin: true },
   awaiting_approval: { icon: Pause, color: 'text-yellow-400' },
   killed: { icon: XCircle, color: 'text-yellow-400' },
 }
