@@ -72,6 +72,7 @@ CREATE TABLE IF NOT EXISTS pipeline_runs (
   project_id  TEXT REFERENCES projects(id),
   status      TEXT NOT NULL DEFAULT 'running',
   input       TEXT NOT NULL,
+  error       TEXT,
   replan_count INTEGER DEFAULT 0,
   created_at  TEXT NOT NULL DEFAULT (datetime('now')),
   ended_at    TEXT
@@ -112,11 +113,4 @@ CREATE TABLE IF NOT EXISTS file_changes (
 );
 CREATE INDEX IF NOT EXISTS idx_file_changes_run ON file_changes(run_id);
 
-CREATE TABLE IF NOT EXISTS run_learnings (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  run_id      TEXT NOT NULL REFERENCES pipeline_runs(id),
-  category    TEXT NOT NULL,
-  content     TEXT NOT NULL,
-  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
-);
 `

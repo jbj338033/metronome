@@ -29,6 +29,12 @@ function migrate(d: Database.Database) {
   if (!colNames.has('parent_step_run_id')) {
     d.prepare('ALTER TABLE step_runs ADD COLUMN parent_step_run_id TEXT').run()
   }
+
+  const runCols = d.prepare("PRAGMA table_info(pipeline_runs)").all() as Array<{ name: string }>
+  const runColNames = new Set(runCols.map((c) => c.name))
+  if (!runColNames.has('error')) {
+    d.prepare('ALTER TABLE pipeline_runs ADD COLUMN error TEXT').run()
+  }
 }
 
 export function initDb() {
