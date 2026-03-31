@@ -49,22 +49,26 @@ class AgentManagerImpl {
 
     const { cmd, args, env } = adapter.buildCommand(spawnOpts)
 
-    const db = getDb()
-    db.prepare(`
-      INSERT INTO agents (id, type_id, blueprint, session_id, status, model, cwd, started_at)
-      VALUES (?, ?, ?, ?, 'running', ?, ?, datetime('now'))
-    `).run(agentId, opts.typeId, opts.blueprint || null, spawnOpts.sessionId, opts.model || null, opts.cwd)
-
-    if (opts.taskId) {
-      db.prepare('UPDATE tasks SET status = ?, agent_id = ?, updated_at = datetime(\'now\') WHERE id = ?')
-        .run('in_progress', agentId, opts.taskId)
-    }
-
     const proc = spawn(cmd, args, {
       cwd: opts.cwd,
       env: { ...process.env, ...env },
       stdio: ['pipe', 'pipe', 'pipe'],
     })
+
+    if (!proc.pid) {
+      throw new Error(`failed to spawn ${cmd}`)
+    }
+
+    const db = getDb()
+    db.prepare(`
+      INSERT INTO agents (id, type_id, blueprint, session_id, status, model, cwd, started_at, pid)
+      VALUES (?, ?, ?, ?, 'running', ?, ?, datetime('now'), ?)
+    `).run(agentId, opts.typeId, opts.blueprint || null, spawnOpts.sessionId, opts.model || null, opts.cwd, proc.pid)
+
+    if (opts.taskId) {
+      db.prepare('UPDATE tasks SET status = ?, agent_id = ?, updated_at = datetime(\'now\') WHERE id = ?')
+        .run('in_progress', agentId, opts.taskId)
+    }
 
     const running: RunningAgent = {
       proc,
@@ -183,10 +187,6 @@ class AgentManagerImpl {
 
       this.processes.delete(agentId)
     })
-
-    if (proc.pid) {
-      db.prepare('UPDATE agents SET pid = ? WHERE id = ?').run(proc.pid, agentId)
-    }
 
     broadcast(`agent:${agentId}`, 'status', {
       agentId,
