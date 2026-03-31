@@ -1,3 +1,7 @@
+import { execFile } from 'child_process'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import { v4 as uuid } from 'uuid'
 import { getDb } from '../db'
 import { agentManager } from '../agents/manager'
@@ -52,9 +56,10 @@ export class StepRunner {
       fanIndex,
     })
 
-    // 모델 라우팅: auto면 이전 스텝의 complexity에 따라 모델 선택
-    let model = blueprint.model
-    if (blueprint.model_routing !== 'fixed') {
+    // 에이전트/모델 결정: 스텝 오버라이드 > 모델 라우팅 > 블루프린트 기본값
+    const agentType = step.agent || blueprint.agent
+    let model = step.model || blueprint.model
+    if (!step.model && blueprint.model_routing !== 'fixed') {
       for (const prev of previousContext) {
         if (prev.structured && typeof prev.structured === 'object' && 'complexity' in (prev.structured as any)) {
           model = selectModel((prev.structured as any).complexity, blueprint.model)
@@ -63,10 +68,16 @@ export class StepRunner {
       }
     }
 
+    // 프롬프트: 스텝 레벨 prompt가 있으면 우선 사용
+    const stepPrompt = step.prompt ? renderTemplate(
+      blueprint.prompt_template || '{{prompt}}',
+      { prompt: step.prompt, context: contextStr || undefined },
+    ) : finalPrompt
+
     // 에이전트 spawn
     const agentId = agentManager.spawn({
-      typeId: blueprint.agent,
-      prompt: finalPrompt,
+      typeId: agentType,
+      prompt: stepPrompt,
       cwd,
       model,
       blueprint: blueprint.name,
@@ -118,12 +129,35 @@ export class StepRunner {
       throw new Error(`step "${step.id}" failed: ${result.output.slice(-200)}`)
     }
 
-    return {
-      stepId: step.id,
-      output: result.output,
-      artifacts,
-      structured,
+    const stepResult: StepContext = { stepId: step.id, output: result.output, artifacts, structured }
+    this.saveStepResult(runId, step.id, stepResult)
+    return stepResult
+  }
+
+  saveStepResult(runId: string, stepId: string, result: StepContext) {
+    const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..')
+    const dir = path.join(root, 'data', 'runs', runId, 'results')
+    fs.mkdirSync(dir, { recursive: true })
+    const summary = {
+      stepId: result.stepId,
+      artifacts: result.artifacts,
+      structured: result.structured,
+      outputLength: result.output.length,
     }
+    fs.writeFileSync(path.join(dir, `${stepId}.json`), JSON.stringify(summary, null, 2))
+  }
+
+  verifyWithCommand(command: string, cwd: string): Promise<{ passed: boolean; output: string }> {
+    return new Promise((resolve) => {
+      const [cmd, ...args] = command.split(' ')
+      execFile(cmd, args, { cwd, timeout: 60_000 }, (err, stdout, stderr) => {
+        if (err) {
+          resolve({ passed: false, output: `${stderr}\n${stdout}`.trim() })
+        } else {
+          resolve({ passed: true, output: stdout.trim() })
+        }
+      })
+    })
   }
 
   private buildContext(
