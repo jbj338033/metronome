@@ -1,12 +1,16 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router'
+import { Search } from 'lucide-react'
 import { useAppStore } from '@/shared/stores/app'
 import { cn } from '@/shared/lib/cn'
+import { Separator } from '@/shared/ui/separator'
+import { ScrollArea } from '@/shared/ui/scroll-area'
 
 interface Command {
   id: string
   label: string
   hint?: string
+  group: 'nav' | 'task'
   action: () => void
 }
 
@@ -40,18 +44,19 @@ export function CommandPalette() {
 
   const commands = useMemo<Command[]>(() => {
     const base: Command[] = [
-      { id: 'nav:dashboard', label: 'Go to Dashboard', hint: '1', action: () => navigate('/') },
-      { id: 'nav:chat', label: 'Go to Chat', hint: '2', action: () => navigate('/chat') },
-      { id: 'nav:tasks', label: 'Go to Tasks', hint: '3', action: () => navigate('/tasks') },
-      { id: 'nav:pipelines', label: 'Go to Pipelines', hint: '4', action: () => navigate('/pipelines/editor') },
-      { id: 'nav:agents', label: 'Go to Agents', hint: '5', action: () => navigate('/agents') },
-      { id: 'action:new-chat', label: 'New Chat', hint: '⌘N', action: () => navigate('/chat') },
+      { id: 'nav:dashboard', label: 'Go to Dashboard', hint: '1', group: 'nav', action: () => navigate('/') },
+      { id: 'nav:chat', label: 'Go to Chat', hint: '2', group: 'nav', action: () => navigate('/chat') },
+      { id: 'nav:tasks', label: 'Go to Tasks', hint: '3', group: 'nav', action: () => navigate('/tasks') },
+      { id: 'nav:pipelines', label: 'Go to Pipelines', hint: '4', group: 'nav', action: () => navigate('/pipelines/editor') },
+      { id: 'nav:agents', label: 'Go to Agents', hint: '5', group: 'nav', action: () => navigate('/agents') },
+      { id: 'action:new-chat', label: 'New Chat', hint: '⌘N', group: 'nav', action: () => navigate('/chat') },
     ]
 
     const taskCmds: Command[] = tasks.slice(0, 10).map((t) => ({
       id: `task:${t.id}`,
       label: `Task: ${t.title}`,
       hint: t.status,
+      group: 'task',
       action: () => navigate(`/tasks/${t.id}`),
     }))
 
@@ -83,42 +88,97 @@ export function CommandPalette() {
 
   if (!open) return null
 
+  const navItems = filtered.filter((c) => c.group === 'nav')
+  const taskItems = filtered.filter((c) => c.group === 'task')
+
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh]">
       {/* backdrop */}
-      <div className="absolute inset-0 bg-black/60" onClick={() => setOpen(false)} />
+      <div
+        className="absolute inset-0 bg-black/60 animate-in fade-in duration-150"
+        onClick={() => setOpen(false)}
+      />
 
       {/* palette */}
-      <div className="relative w-full max-w-md rounded-lg border border-zinc-800 bg-zinc-900 shadow-2xl">
-        <input
-          ref={inputRef}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="type a command..."
-          className="w-full border-b border-zinc-800 bg-transparent px-4 py-3 text-sm text-zinc-200 placeholder-zinc-600 outline-none"
-        />
-        <div className="max-h-64 overflow-auto p-1">
-          {filtered.length === 0 ? (
-            <div className="px-3 py-6 text-center text-xs text-zinc-600">no results</div>
-          ) : (
-            filtered.map((cmd, i) => (
-              <button
-                key={cmd.id}
-                onClick={() => { cmd.action(); setOpen(false) }}
-                className={cn(
-                  'flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors',
-                  i === selectedIdx ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:bg-zinc-800/50',
-                )}
-              >
-                <span className="flex-1">{cmd.label}</span>
-                {cmd.hint && (
-                  <span className="font-[var(--font-mono)] text-xs text-zinc-600">{cmd.hint}</span>
-                )}
-              </button>
-            ))
-          )}
+      <div className="relative w-full max-w-md rounded-lg border border-border bg-popover shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="flex items-center gap-2 border-b border-border px-3">
+          <Search size={14} className="text-muted-foreground" />
+          <input
+            ref={inputRef}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="type a command..."
+            className="w-full bg-transparent py-3 text-sm text-foreground placeholder:text-muted-foreground outline-none"
+          />
         </div>
+        <ScrollArea className="max-h-64">
+          <div className="p-1">
+            {filtered.length === 0 ? (
+              <div className="px-3 py-6 text-center text-xs text-muted-foreground">no results</div>
+            ) : (
+              <>
+                {navItems.length > 0 && (
+                  <div>
+                    <div className="px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
+                      navigation
+                    </div>
+                    {navItems.map((cmd) => {
+                      const globalIdx = filtered.indexOf(cmd)
+                      return (
+                        <button
+                          key={cmd.id}
+                          onClick={() => { cmd.action(); setOpen(false) }}
+                          className={cn(
+                            'flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors',
+                            globalIdx === selectedIdx
+                              ? 'bg-accent text-accent-foreground'
+                              : 'text-muted-foreground hover:bg-accent/50',
+                          )}
+                        >
+                          <span className="flex-1">{cmd.label}</span>
+                          {cmd.hint && (
+                            <span className="font-mono text-xs text-muted-foreground/50">{cmd.hint}</span>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+                {navItems.length > 0 && taskItems.length > 0 && (
+                  <Separator className="my-1" />
+                )}
+                {taskItems.length > 0 && (
+                  <div>
+                    <div className="px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
+                      tasks
+                    </div>
+                    {taskItems.map((cmd) => {
+                      const globalIdx = filtered.indexOf(cmd)
+                      return (
+                        <button
+                          key={cmd.id}
+                          onClick={() => { cmd.action(); setOpen(false) }}
+                          className={cn(
+                            'flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors',
+                            globalIdx === selectedIdx
+                              ? 'bg-accent text-accent-foreground'
+                              : 'text-muted-foreground hover:bg-accent/50',
+                          )}
+                        >
+                          <span className="flex-1 truncate">{cmd.label}</span>
+                          {cmd.hint && (
+                            <span className="font-mono text-xs text-muted-foreground/50">{cmd.hint}</span>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </ScrollArea>
       </div>
     </div>
   )
