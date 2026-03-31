@@ -9,6 +9,9 @@ interface StepRunInfo {
   started_at: string | null
   ended_at: string | null
   structured: string | null
+  verify_attempt: number | null
+  parent_step_run_id: string | null
+  agent_model?: string | null
 }
 
 const statusMap: Record<string, string> = {
@@ -18,6 +21,7 @@ const statusMap: Record<string, string> = {
   pending: 'pending',
   skipped: 'cancelled',
   cancelled: 'cancelled',
+  retrying: 'pending',
   awaiting_approval: 'awaiting_approval',
 }
 
@@ -28,6 +32,7 @@ const lineColor: Record<string, string> = {
   failed: 'bg-red-800',
   skipped: 'bg-muted',
   cancelled: 'bg-muted',
+  retrying: 'bg-yellow-500',
   awaiting_approval: 'bg-yellow-800',
 }
 
@@ -47,8 +52,22 @@ interface PipelineTimelineProps {
 }
 
 export function PipelineTimeline({ steps, onStepClick, activeStepId }: PipelineTimelineProps) {
-  const grouped = new Map<string, StepRunInfo[]>()
+  // verify 스텝(__verify suffix)을 메인 스텝에 묶기
+  const mainSteps: StepRunInfo[] = []
+  const verifySteps = new Map<string, StepRunInfo[]>()
+
   for (const step of steps) {
+    if (step.step_id.endsWith('__verify')) {
+      const parentId = step.step_id.replace('__verify', '')
+      if (!verifySteps.has(parentId)) verifySteps.set(parentId, [])
+      verifySteps.get(parentId)!.push(step)
+    } else {
+      mainSteps.push(step)
+    }
+  }
+
+  const grouped = new Map<string, StepRunInfo[]>()
+  for (const step of mainSteps) {
     const key = step.step_id
     if (!grouped.has(key)) grouped.set(key, [])
     grouped.get(key)!.push(step)
@@ -62,6 +81,7 @@ export function PipelineTimeline({ steps, onStepClick, activeStepId }: PipelineT
         const isLast = idx === entries.length - 1
         const primaryRun = runs[0]
         const isFanOut = runs.length > 1 || runs[0].fan_index !== null
+        const verifies = verifySteps.get(stepId) || []
         const allCompleted = runs.every((r) => r.status === 'completed')
         const anyRunning = runs.some((r) => r.status === 'running')
         const anyFailed = runs.some((r) => r.status === 'failed')
@@ -87,6 +107,16 @@ export function PipelineTimeline({ steps, onStepClick, activeStepId }: PipelineT
                 <div className="flex items-baseline gap-2">
                   <span className="text-sm font-medium text-foreground">{stepId}</span>
                   <span className="text-xs text-muted-foreground">{overallStatus}</span>
+                  {primaryRun.agent_model && (
+                    <span className={cn(
+                      'rounded px-1 py-0.5 text-[10px] font-mono',
+                      primaryRun.agent_model === 'opus' ? 'bg-violet-500/20 text-violet-400'
+                        : primaryRun.agent_model === 'haiku' ? 'bg-zinc-500/20 text-zinc-400'
+                        : 'bg-blue-500/20 text-blue-400',
+                    )}>
+                      {primaryRun.agent_model}
+                    </span>
+                  )}
                   <span className="ml-auto font-mono text-xs text-muted-foreground/60">
                     {formatElapsed(primaryRun.started_at, primaryRun.ended_at)}
                   </span>
@@ -105,6 +135,33 @@ export function PipelineTimeline({ steps, onStepClick, activeStepId }: PipelineT
                         </span>
                       </div>
                     ))}
+                  </div>
+                )}
+
+                {verifies.length > 0 && (
+                  <div className="mt-2 border-l-2 border-muted pl-3 space-y-1">
+                    <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">verify</span>
+                    {verifies.map((v, i) => {
+                      const passed = v.status === 'completed' && v.structured
+                        ? (() => { try { return JSON.parse(v.structured!).passed } catch { return null } })()
+                        : null
+                      return (
+                        <div key={i} className="flex items-center gap-2 text-xs">
+                          <StatusIcon status={statusMap[v.status] || 'pending'} className="size-3" />
+                          <span className="text-foreground/60">
+                            attempt {(v.verify_attempt ?? i) + 1}
+                          </span>
+                          {passed !== null && (
+                            <span className={passed ? 'text-emerald-400' : 'text-red-400'}>
+                              {passed ? 'pass' : 'fail'}
+                            </span>
+                          )}
+                          <span className="font-mono text-muted-foreground/60">
+                            {formatElapsed(v.started_at, v.ended_at)}
+                          </span>
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </div>
