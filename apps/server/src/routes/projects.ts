@@ -17,8 +17,15 @@ projectRoutes.post('/', async (c) => {
 
 projectRoutes.delete('/:id', (c) => {
   const id = c.req.param('id')
-  const project = getDb().prepare('SELECT id FROM projects WHERE id = ?').get(id)
+  const db = getDb()
+  const project = db.prepare('SELECT id FROM projects WHERE id = ?').get(id)
   if (!project) return c.json({ error: 'not found' }, 404)
-  getDb().prepare('DELETE FROM projects WHERE id = ?').run(id)
+
+  db.transaction(() => {
+    db.prepare('DELETE FROM messages WHERE task_id IN (SELECT id FROM tasks WHERE project_id = ?)').run(id)
+    db.prepare('DELETE FROM tasks WHERE project_id = ?').run(id)
+    db.prepare('DELETE FROM projects WHERE id = ?').run(id)
+  })()
+
   return c.body(null, 204)
 })

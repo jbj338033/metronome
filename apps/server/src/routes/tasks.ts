@@ -63,8 +63,12 @@ taskRoutes.delete('/:id', (c) => {
   const task = getTaskById(id)
   if (!task) return c.json({ error: 'not found' }, 404)
 
-  getDb().prepare('DELETE FROM messages WHERE task_id = ?').run(id)
-  getDb().prepare('DELETE FROM tasks WHERE parent_id = ?').run(id)
-  getDb().prepare('DELETE FROM tasks WHERE id = ?').run(id)
+  const db = getDb()
+  db.transaction(() => {
+    db.prepare('DELETE FROM messages WHERE task_id = ?').run(id)
+    db.prepare('DELETE FROM tasks WHERE parent_id = ?').run(id)
+    db.prepare('DELETE FROM tasks WHERE id = ?').run(id)
+  })()
+
   return c.body(null, 204)
 })
