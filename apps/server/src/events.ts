@@ -26,11 +26,10 @@ class TypedEmitter extends EventEmitter {
   }
 }
 
-const key = '__metronome_events__'
-if (!(globalThis as any)[key]) {
-  const emitter = new TypedEmitter()
-  emitter.setMaxListeners(100)
-  ;(globalThis as any)[key] = emitter
-}
+const key = Symbol.for('metronome.events')
+const g = globalThis as unknown as Record<symbol, TypedEmitter>
+const emitter = new TypedEmitter()
+emitter.setMaxListeners(100)
+g[key] = emitter
 
-export const events: TypedEmitter = (globalThis as any)[key]
+export const events: TypedEmitter = g[key]
