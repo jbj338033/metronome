@@ -19,7 +19,6 @@ chatRoutes.post('/', async (c) => {
 
   let taskId = body.task_id
 
-  // 태스크가 없으면 자동 생성
   if (!taskId) {
     const title = body.content.slice(0, 60).replace(/\n/g, ' ')
     taskId = createTask({
@@ -31,7 +30,6 @@ chatRoutes.post('/', async (c) => {
     broadcast('system', 'task:created', { taskId, title })
   }
 
-  // 유저 메시지 저장
   const messageId = createMessage({
     taskId,
     role: 'user',
@@ -45,7 +43,6 @@ chatRoutes.post('/', async (c) => {
     content: body.content,
   })
 
-  // 에이전트 자동 spawn
   let agentId: string | null = null
   if (body.auto_spawn !== false && body.agent_type_id && body.cwd) {
     agentId = agentManager.spawn({
@@ -68,14 +65,12 @@ chatRoutes.post('/message', async (c) => {
     agent_id?: string
   }>()
 
-  // 유저 메시지 저장
   const messageId = createMessage({
     taskId: body.task_id,
     role: 'user',
     content: body.content,
   })
 
-  // 실행 중인 에이전트에 입력 전달
   if (body.agent_id) {
     agentManager.sendInput(body.agent_id, body.content)
   }

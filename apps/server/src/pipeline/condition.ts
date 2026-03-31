@@ -1,8 +1,3 @@
-/**
- * dot-path 기반 truthy 조건 평가
- *
- * "review.has_issues" → results["review"].structured.has_issues → Boolean()
- */
 export function evaluateCondition(
   expr: string,
   results: Map<string, { structured?: unknown }>,

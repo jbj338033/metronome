@@ -25,7 +25,6 @@ export class DagScheduler {
       }
     }
 
-    // 순환 검증 (DFS)
     const visited = new Set<string>()
     const inStack = new Set<string>()
 

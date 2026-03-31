@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { serve } from '@hono/node-server'
-import { injectWebSocket, createNodeWebSocket } from '@hono/node-ws'
+import { createNodeWebSocket } from '@hono/node-ws'
 import { agentRoutes } from './routes/agents'
 import { taskRoutes } from './routes/tasks'
 import { chatRoutes } from './routes/chat'
@@ -32,7 +32,6 @@ app.get('/ws', upgradeWebSocket(handleWebSocket))
 
 app.get('/health', (c) => c.json({ status: 'ok' }))
 
-// 프로덕션: 웹 정적 파일 서빙
 if (process.env.NODE_ENV === 'production') {
   app.use('/*', serveStatic({ root: '../web/dist' }))
   app.get('*', serveStatic({ path: '../web/dist/index.html' }))

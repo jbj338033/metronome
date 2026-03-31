@@ -34,7 +34,6 @@ export function deleteBlueprint(name: string): boolean {
 }
 
 export function loadPipeline(id: string): Pipeline | null {
-  // defaults 먼저, 그다음 custom
   for (const sub of ['defaults', 'custom']) {
     const file = path.join(PIPELINES_DIR, sub, `${id}.yaml`)
     if (fs.existsSync(file)) {
