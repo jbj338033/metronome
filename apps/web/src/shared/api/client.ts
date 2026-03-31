@@ -1,74 +1,84 @@
-const BASE = '/api'
+import ky from 'ky'
+import type {
+  Agent,
+  AgentType,
+  AgentLog,
+  AgentSpawnRequest,
+  AgentStatsResponse,
+  RunningAgent,
+  Task,
+  CreateTaskRequest,
+  UpdateTaskRequest,
+  Message,
+  Project,
+  Blueprint,
+  Pipeline,
+  PipelineRun,
+  PipelineRunRequest,
+  StepRun,
+  FileChange,
+  DirListing,
+  SendMessageRequest,
+  SendMessageResponse,
+  SendFollowUpRequest,
+  SendFollowUpResponse,
+} from '@metronome/types'
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
-    ...init,
-  })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }))
-    throw new Error(err.error || res.statusText)
-  }
-  if (res.status === 204) return undefined as T
-  return res.json()
-}
-
-interface DirEntry { name: string; type: 'directory' }
-interface DirListing { path: string; parent: string | null; entries: DirEntry[] }
+const http = ky.create({ prefixUrl: '/api' })
 
 export const api = {
   fs: {
-    list: (dirPath: string) => request<DirListing>(`/fs/list?path=${encodeURIComponent(dirPath)}`),
+    list: (dirPath: string) => http.get('fs/list', { searchParams: { path: dirPath } }).json<DirListing>(),
   },
   agents: {
-    list: () => request<any[]>('/agents'),
-    types: () => request<any[]>('/agents/types'),
-    availability: () => request<Record<string, boolean>>('/agents/availability'),
-    running: () => request<any[]>('/agents/running'),
-    get: (id: string) => request<any>(`/agents/${id}`),
-    logs: (id: string) => request<any[]>(`/agents/${id}/logs`),
-    spawn: (body: any) => request<{ agentId: string }>('/agents/spawn', { method: 'POST', body: JSON.stringify(body) }),
-    kill: (id: string) => request<void>(`/agents/${id}`, { method: 'DELETE' }),
-    stats: () => request<{ stats: any[]; tiers: any[] }>('/agents/stats'),
-    resume: (id: string, prompt: string) => request<{ agentId: string }>(`/agents/${id}/resume`, { method: 'POST', body: JSON.stringify({ prompt }) }),
+    list: () => http.get('agents').json<Agent[]>(),
+    types: () => http.get('agents/types').json<AgentType[]>(),
+    availability: () => http.get('agents/availability').json<Record<string, boolean>>(),
+    running: () => http.get('agents/running').json<RunningAgent[]>(),
+    get: (id: string) => http.get(`agents/${id}`).json<Agent>(),
+    logs: (id: string) => http.get(`agents/${id}/logs`).json<AgentLog[]>(),
+    spawn: (body: AgentSpawnRequest) => http.post('agents/spawn', { json: body }).json<{ agentId: string }>(),
+    kill: (id: string) => http.delete(`agents/${id}`),
+    stats: () => http.get('agents/stats').json<AgentStatsResponse>(),
+    resume: (id: string, prompt: string) => http.post(`agents/${id}/resume`, { json: { prompt } }).json<{ agentId: string }>(),
   },
   tasks: {
-    list: (projectId?: string) => request<any[]>(`/tasks${projectId ? `?project_id=${projectId}` : ''}`),
-    get: (id: string) => request<any>(`/tasks/${id}`),
-    subtasks: (id: string) => request<any[]>(`/tasks/${id}/subtasks`),
-    messages: (id: string) => request<any[]>(`/tasks/${id}/messages`),
-    create: (body: any) => request<{ id: string }>('/tasks', { method: 'POST', body: JSON.stringify(body) }),
-    update: (id: string, body: any) => request<any>(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
-    delete: (id: string) => request<void>(`/tasks/${id}`, { method: 'DELETE' }),
+    list: (projectId?: string) => http.get('tasks', { searchParams: projectId ? { project_id: projectId } : {} }).json<Task[]>(),
+    get: (id: string) => http.get(`tasks/${id}`).json<Task>(),
+    subtasks: (id: string) => http.get(`tasks/${id}/subtasks`).json<Task[]>(),
+    messages: (id: string) => http.get(`tasks/${id}/messages`).json<Message[]>(),
+    create: (body: CreateTaskRequest) => http.post('tasks', { json: body }).json<{ id: string }>(),
+    update: (id: string, body: UpdateTaskRequest) => http.patch(`tasks/${id}`, { json: body }).json<Task>(),
+    delete: (id: string) => http.delete(`tasks/${id}`),
   },
   projects: {
-    list: () => request<any[]>('/projects'),
-    create: (body: { name: string; path: string }) => request<{ id: string }>('/projects', { method: 'POST', body: JSON.stringify(body) }),
-    delete: (id: string) => request<void>(`/projects/${id}`, { method: 'DELETE' }),
+    list: () => http.get('projects').json<Project[]>(),
+    create: (body: { name: string; path: string }) => http.post('projects', { json: body }).json<{ id: string }>(),
+    delete: (id: string) => http.delete(`projects/${id}`),
   },
   blueprints: {
-    list: () => request<any[]>('/blueprints'),
-    get: (name: string) => request<any>(`/blueprints/${name}`),
-    save: (name: string, body: any) => request<any>(`/blueprints/${name}`, { method: 'PUT', body: JSON.stringify(body) }),
-    delete: (name: string) => request<void>(`/blueprints/${name}`, { method: 'DELETE' }),
+    list: () => http.get('blueprints').json<Blueprint[]>(),
+    get: (name: string) => http.get(`blueprints/${name}`).json<Blueprint>(),
+    save: (name: string, body: Blueprint) => http.put(`blueprints/${name}`, { json: body }).json<Blueprint>(),
+    delete: (name: string) => http.delete(`blueprints/${name}`),
   },
   pipelines: {
-    list: () => request<any[]>('/pipelines'),
-    get: (name: string) => request<any>(`/pipelines/${name}`),
-    run: (name: string, body: { prompt: string; cwd: string; project_id?: string }) => request<{ runId: string }>(`/pipelines/${name}/run`, { method: 'POST', body: JSON.stringify(body) }),
-    runDynamic: (body: { prompt: string; cwd: string; project_id?: string }) => request<{ runId: string }>('/pipelines/run-dynamic', { method: 'POST', body: JSON.stringify(body) }),
-    requestReplan: (id: string) => request<any>(`/pipelines/runs/${id}/replan`, { method: 'POST' }),
-    listRuns: () => request<any[]>('/pipelines/runs'),
-    cancelRun: (id: string) => request<any>(`/pipelines/runs/${id}/cancel`, { method: 'POST' }),
-    approveStep: (runId: string, stepId: string) => request<any>(`/pipelines/runs/${runId}/approve/${stepId}`, { method: 'POST' }),
-    rejectStep: (runId: string, stepId: string) => request<any>(`/pipelines/runs/${runId}/reject/${stepId}`, { method: 'POST' }),
-    getRun: (id: string) => request<any>(`/pipelines/runs/${id}`),
-    getRunSteps: (id: string) => request<any[]>(`/pipelines/runs/${id}/steps`),
-    getRunFiles: (id: string) => request<any[]>(`/pipelines/runs/${id}/files`),
+    list: () => http.get('pipelines').json<Array<Pipeline & { source: string }>>(),
+    get: (name: string) => http.get(`pipelines/${name}`).json<Pipeline>(),
+    run: (name: string, body: PipelineRunRequest) => http.post(`pipelines/${name}/run`, { json: body }).json<{ runId: string }>(),
+    runDynamic: (body: PipelineRunRequest) => http.post('pipelines/run-dynamic', { json: body }).json<{ runId: string }>(),
+    requestReplan: (id: string) => http.post(`pipelines/runs/${id}/replan`).json<{ ok: boolean }>(),
+    listRuns: (projectId?: string) => http.get('pipelines/runs', { searchParams: projectId ? { project_id: projectId } : {} }).json<PipelineRun[]>(),
+    cancelRun: (id: string) => http.post(`pipelines/runs/${id}/cancel`).json<{ ok: boolean }>(),
+    approveStep: (runId: string, stepId: string) => http.post(`pipelines/runs/${runId}/approve/${stepId}`).json<{ ok: boolean }>(),
+    rejectStep: (runId: string, stepId: string) => http.post(`pipelines/runs/${runId}/reject/${stepId}`).json<{ ok: boolean }>(),
+    getRun: (id: string) => http.get(`pipelines/runs/${id}`).json<PipelineRun>(),
+    getRunSteps: (id: string) => http.get(`pipelines/runs/${id}/steps`).json<StepRun[]>(),
+    getRunFiles: (id: string) => http.get(`pipelines/runs/${id}/files`).json<FileChange[]>(),
   },
   chat: {
-    send: (body: any) => request<{ taskId: string; messageId: string; agentId: string | null }>('/chat', { method: 'POST', body: JSON.stringify(body) }),
-    message: (body: any) => request<{ messageId: string }>('/chat/message', { method: 'POST', body: JSON.stringify(body) }),
-    messages: (taskId: string) => request<any[]>(`/chat/messages/${taskId}`),
+    send: (body: SendMessageRequest) => http.post('chat', { json: body }).json<SendMessageResponse>(),
+    message: (body: SendFollowUpRequest) => http.post('chat/message', { json: body }).json<SendFollowUpResponse>(),
+    messages: (taskId: string) => http.get(`chat/messages/${taskId}`).json<Message[]>(),
   },
 }
