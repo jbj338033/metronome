@@ -1,13 +1,17 @@
 import { Link } from 'react-router'
+import { Plus } from 'lucide-react'
+import { useShallow } from 'zustand/react/shallow'
 import { useAppStore } from '@/shared/stores/app'
 import { cn } from '@/shared/lib/cn'
+import { StatusIcon } from '@/shared/lib/status'
+import { Button } from '@/shared/ui/button'
 import type { Task } from '@metronome/types'
 
 const columns = [
-  { key: 'pending', label: 'Pending', icon: '○', color: 'text-zinc-500' },
-  { key: 'in_progress', label: 'Running', icon: '●', color: 'text-emerald-400' },
-  { key: 'completed', label: 'Done', icon: '✓', color: 'text-zinc-400' },
-  { key: 'failed', label: 'Failed', icon: '✗', color: 'text-red-400' },
+  { key: 'pending', label: 'Pending' },
+  { key: 'in_progress', label: 'Running' },
+  { key: 'completed', label: 'Done' },
+  { key: 'failed', label: 'Failed' },
 ] as const
 
 function formatTokens(n: number) {
@@ -17,34 +21,28 @@ function formatTokens(n: number) {
 }
 
 function TaskCard({ task }: { task: Task }) {
-  const subtasks = useAppStore((s) => s.tasks.filter((t) => t.parent_id === task.id))
+  const subtasks = useAppStore(useShallow((s) => s.tasks.filter((t) => t.parent_id === task.id)))
 
   return (
     <Link
       to={`/tasks/${task.id}`}
-      className="block rounded-md border border-zinc-800 p-3 transition-colors hover:border-zinc-700 hover:bg-zinc-900/50"
+      className="block rounded-md border border-border p-3 transition-colors hover:border-border/80 hover:bg-accent/50"
     >
-      <div className="truncate text-sm text-zinc-200">{task.title}</div>
+      <div className="truncate text-sm text-foreground">{task.title}</div>
       {subtasks.length > 0 && (
         <div className="mt-2 space-y-1">
           {subtasks.map((sub) => (
-            <div key={sub.id} className="flex items-center gap-1.5 text-xs text-zinc-500">
-              <span className={cn(
-                sub.status === 'in_progress' && 'text-emerald-400',
-                sub.status === 'completed' && 'text-zinc-400',
-                sub.status === 'failed' && 'text-red-400',
-              )}>
-                {sub.status === 'in_progress' ? '●' : sub.status === 'completed' ? '✓' : sub.status === 'failed' ? '✗' : '○'}
-              </span>
+            <div key={sub.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <StatusIcon status={sub.status} className="size-3" />
               <span className="truncate">{sub.title}</span>
             </div>
           ))}
         </div>
       )}
-      <div className="mt-2 flex items-center gap-2 text-xs text-zinc-600">
-        {task.agent_id && <span className="text-zinc-500">{task.status === 'in_progress' ? 'running' : ''}</span>}
+      <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+        {task.agent_id && <span>{task.status === 'in_progress' ? 'running' : ''}</span>}
         {task.total_tokens > 0 && (
-          <span className="ml-auto font-[var(--font-mono)]">{formatTokens(task.total_tokens)}</span>
+          <span className="ml-auto font-mono">{formatTokens(task.total_tokens)}</span>
         )}
       </div>
     </Link>
@@ -52,29 +50,29 @@ function TaskCard({ task }: { task: Task }) {
 }
 
 export function TasksPage() {
-  const tasks = useAppStore((s) => s.tasks.filter((t) => !t.parent_id))
+  const tasks = useAppStore(useShallow((s) => s.tasks.filter((t) => !t.parent_id)))
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-zinc-800 px-6 py-3">
+      <div className="flex items-center justify-between border-b border-border px-6 py-3">
         <h1 className="text-sm font-semibold">Tasks</h1>
-        <Link
-          to="/chat"
-          className="rounded-md bg-zinc-800 px-3 py-1 text-xs text-zinc-300 hover:bg-zinc-700"
-        >
-          + new task
-        </Link>
+        <Button asChild variant="secondary" size="sm">
+          <Link to="/chat">
+            <Plus size={14} />
+            new task
+          </Link>
+        </Button>
       </div>
 
       <div className="flex flex-1 gap-4 overflow-x-auto p-4">
-        {columns.map(({ key, label, icon, color }) => {
+        {columns.map(({ key, label }) => {
           const col = tasks.filter((t) => t.status === key)
           return (
             <div key={key} className="flex w-64 shrink-0 flex-col">
               <div className="mb-3 flex items-center gap-2 px-1">
-                <span className={cn('text-xs', color)}>{icon}</span>
-                <span className="text-xs font-medium text-zinc-400">{label}</span>
-                <span className="ml-auto text-xs text-zinc-600">{col.length}</span>
+                <StatusIcon status={key} className="size-3" />
+                <span className="text-xs font-medium text-muted-foreground">{label}</span>
+                <span className="ml-auto text-xs text-muted-foreground/60">{col.length}</span>
               </div>
               <div className="flex-1 space-y-2 overflow-auto">
                 {col.map((task) => (
