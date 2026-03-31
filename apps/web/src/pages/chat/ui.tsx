@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { ArrowUp, Loader2, Plus } from 'lucide-react'
-import { useAppStore } from '@/shared/stores/app'
+import { useTaskStore } from '@/entities/task/model/store'
 import { api } from '@/shared/api/client'
 import { wsClient } from '@/shared/api/ws'
 import { MessageBubble } from '@/entities/message/ui'
@@ -28,7 +28,7 @@ export function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  const currentTask = useAppStore((s) => s.tasks.find((t) => t.id === currentTaskId))
+  const currentTask = useTaskStore((s) => s.tasks.find((t) => t.id === currentTaskId))
 
   useEffect(() => {
     api.agents.types().then(setAgentTypes)

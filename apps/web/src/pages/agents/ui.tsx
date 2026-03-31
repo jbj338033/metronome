@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Bot } from 'lucide-react'
+import { Bot, RotateCw } from 'lucide-react'
 import { api } from '@/shared/api/client'
-import { useAppStore } from '@/shared/stores/app'
+import { wsClient } from '@/shared/api/ws'
+import { useAgentStore } from '@/entities/agent/model/store'
 import { BlueprintEditor } from '@/widgets/blueprint-editor/ui'
 import { cn } from '@/shared/lib/cn'
 import { StatusIcon } from '@/shared/lib/status'
@@ -16,8 +17,8 @@ export function AgentsPage() {
   const [availability, setAvailability] = useState<Record<string, boolean>>({})
   const [blueprints, setBlueprints] = useState<Blueprint[]>([])
   const [selectedBp, setSelectedBp] = useState<Blueprint | null>(null)
-  const agents = useAppStore((s) => s.agents)
-  const running = useAppStore((s) => s.runningAgents)
+  const agents = useAgentStore((s) => s.agents)
+  const running = useAgentStore((s) => s.runningAgents)
 
   useEffect(() => {
     api.agents.types().then(setTypes)
@@ -102,9 +103,34 @@ export function AgentsPage() {
                     <StatusIcon status={a.status} className="size-3" />
                     <span className="font-mono text-muted-foreground">{a.id.slice(0, 8)}</span>
                     <span className="text-foreground/70">{a.blueprint || a.type_id}</span>
+                    {a.model && (
+                      <span className={cn(
+                        'rounded px-1 py-0.5 text-[10px] font-mono',
+                        a.model === 'opus' ? 'bg-violet-500/20 text-violet-400'
+                          : a.model === 'haiku' ? 'bg-zinc-500/20 text-zinc-400'
+                          : 'bg-blue-500/20 text-blue-400',
+                      )}>
+                        {a.model}
+                      </span>
+                    )}
                     <span className="text-muted-foreground">{a.status}</span>
-                    <span className="ml-auto font-mono text-muted-foreground">
+                    <span className="ml-auto flex items-center gap-2 font-mono text-muted-foreground">
                       {a.tokens_in + a.tokens_out > 0 ? `${((a.tokens_in + a.tokens_out) / 1000).toFixed(1)}k` : ''}
+                      {a.session_id && a.status === 'completed' && (
+                        <Button
+                          onClick={async () => {
+                            const prompt = window.prompt('resume prompt:')
+                            if (!prompt) return
+                            const { agentId } = await api.agents.resume(a.id, prompt)
+                            wsClient.subscribe([`agent:${agentId}`])
+                          }}
+                          variant="ghost"
+                          size="xs"
+                          className="h-5 px-1 text-muted-foreground hover:text-foreground"
+                        >
+                          <RotateCw size={12} />
+                        </Button>
+                      )}
                     </span>
                   </div>
                 ))}

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router'
 import { Search } from 'lucide-react'
-import { useAppStore } from '@/shared/stores/app'
+import { useTaskStore } from '@/entities/task/model/store'
 import { cn } from '@/shared/lib/cn'
 import { Separator } from '@/shared/ui/separator'
 import { ScrollArea } from '@/shared/ui/scroll-area'
@@ -20,7 +20,7 @@ export function CommandPalette() {
   const [selectedIdx, setSelectedIdx] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
-  const tasks = useAppStore((s) => s.tasks)
+  const tasks = useTaskStore((s) => s.tasks)
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {

@@ -12,6 +12,9 @@ import {
 import { cn } from '@/shared/lib/cn'
 import { StatusIcon } from '@/shared/lib/status'
 import { useAppStore } from '@/shared/stores/app'
+import { useAgentStore } from '@/entities/agent/model/store'
+import { useTaskStore } from '@/entities/task/model/store'
+import { useProjectStore } from '@/entities/project/model/store'
 import { api } from '@/shared/api/client'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
@@ -28,12 +31,12 @@ const nav: { to: string; label: string; key: string; icon: LucideIcon }[] = [
 ]
 
 export function RootLayout() {
-  const runningCount = useAppStore((s) => s.runningAgents.length)
-  const pendingCount = useAppStore((s) => s.tasks.filter((t) => t.status === 'pending').length)
-  const projects = useAppStore((s) => s.projects)
-  const activeProjectId = useAppStore((s) => s.activeProjectId)
-  const setActiveProject = useAppStore((s) => s.setActiveProject)
-  const fetchProjects = useAppStore((s) => s.fetchProjects)
+  const runningCount = useAgentStore((s) => s.runningAgents.length)
+  const pendingCount = useTaskStore((s) => s.tasks.filter((t) => t.status === 'pending').length)
+  const projects = useProjectStore((s) => s.projects)
+  const activeProjectId = useProjectStore((s) => s.activeProjectId)
+  const setActiveProject = useProjectStore((s) => s.setActiveProject)
+  const fetchProjects = useProjectStore((s) => s.fetchProjects)
   const init = useAppStore((s) => s.init)
   const navigate = useNavigate()
 

@@ -1,13 +1,59 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { Plus, ListTodo } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useAppStore } from '@/shared/stores/app'
+import { useAgentStore } from '@/entities/agent/model/store'
+import { useTaskStore } from '@/entities/task/model/store'
+import { api } from '@/shared/api/client'
 import { cn } from '@/shared/lib/cn'
 import { StatusIcon } from '@/shared/lib/status'
 import { Button } from '@/shared/ui/button'
 import { Skeleton } from '@/shared/ui/skeleton'
 import type { Task } from '@metronome/types'
+
+interface ModelStat {
+  model: string
+  count: number
+  tokens_in: number
+  tokens_out: number
+  estimated_cost: number
+}
+
+function CostBar({ stats }: { stats: ModelStat[] }) {
+  if (stats.length === 0) return null
+  const totalCost = stats.reduce((s, r) => s + r.estimated_cost, 0)
+  const totalTokens = stats.reduce((s, r) => s + r.tokens_in + r.tokens_out, 0)
+
+  return (
+    <div className="border-b border-border px-6 py-3">
+      <div className="mb-2 flex items-baseline justify-between">
+        <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">model usage</span>
+        <span className="font-mono text-xs text-muted-foreground">
+          ~${totalCost.toFixed(3)} · {(totalTokens / 1000).toFixed(1)}k tokens
+        </span>
+      </div>
+      <div className="flex gap-1 h-1.5 rounded-full overflow-hidden bg-muted">
+        {stats.map((s) => {
+          const pct = totalTokens > 0 ? ((s.tokens_in + s.tokens_out) / totalTokens) * 100 : 0
+          const color = s.model === 'opus' ? 'bg-violet-500' : s.model === 'sonnet' ? 'bg-blue-500' : 'bg-zinc-500'
+          return pct > 0 ? <div key={s.model} className={cn('h-full', color)} style={{ width: `${pct}%` }} /> : null
+        })}
+      </div>
+      <div className="mt-1.5 flex gap-3">
+        {stats.map((s) => (
+          <span key={s.model} className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+            <span className={cn(
+              'size-1.5 rounded-full',
+              s.model === 'opus' ? 'bg-violet-500' : s.model === 'sonnet' ? 'bg-blue-500' : 'bg-zinc-500',
+            )} />
+            {s.model || '?'} ({s.count})
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 function formatDuration(created: string) {
   const ms = Date.now() - new Date(created + 'Z').getTime()
@@ -24,7 +70,7 @@ function formatTokens(n: number) {
 }
 
 function TaskRow({ task, isSubtask }: { task: Task; isSubtask?: boolean }) {
-  const subtasks = useAppStore(useShallow((s) => s.tasks.filter((t) => t.parent_id === task.id)))
+  const subtasks = useTaskStore(useShallow((s) => s.tasks.filter((t) => t.parent_id === task.id)))
 
   return (
     <>
@@ -56,14 +102,16 @@ function TaskRow({ task, isSubtask }: { task: Task; isSubtask?: boolean }) {
 }
 
 export function DashboardPage() {
-  const { tasks, runningAgents, initialized, init } = useAppStore(useShallow((s) => ({
-    tasks: s.tasks,
-    runningAgents: s.runningAgents,
-    initialized: s.initialized,
-    init: s.init,
-  })))
+  const tasks = useTaskStore((s) => s.tasks)
+  const runningAgents = useAgentStore((s) => s.runningAgents)
+  const initialized = useAppStore((s) => s.initialized)
+  const init = useAppStore((s) => s.init)
+  const [modelStats, setModelStats] = useState<ModelStat[]>([])
 
   useEffect(() => { init() }, [init])
+  useEffect(() => {
+    if (initialized) api.agents.stats().then((r) => setModelStats(r.stats))
+  }, [initialized])
 
   if (!initialized) {
     return (
@@ -116,6 +164,8 @@ export function DashboardPage() {
           {formatTokens(totalTokens)} tokens
         </span>
       </div>
+
+      <CostBar stats={modelStats} />
 
       {rootTasks.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3">

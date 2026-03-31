@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router'
 import { FileQuestion, ArrowLeft } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
-import { useAppStore } from '@/shared/stores/app'
+import { useTaskStore } from '@/entities/task/model/store'
 import { api } from '@/shared/api/client'
 import { wsClient } from '@/shared/api/ws'
 import { AgentTerminal } from '@/widgets/agent-terminal/ui'
@@ -20,8 +20,8 @@ function formatTokens(n: number) {
 
 export function TaskDetailPage() {
   const { id } = useParams()
-  const task = useAppStore((s) => s.tasks.find((t) => t.id === id))
-  const subtasks = useAppStore(useShallow((s) => s.tasks.filter((t) => t.parent_id === id)))
+  const task = useTaskStore((s) => s.tasks.find((t) => t.id === id))
+  const subtasks = useTaskStore(useShallow((s) => s.tasks.filter((t) => t.parent_id === id)))
   const [messages, setMessages] = useState<any[]>([])
   const [stdinInput, setStdinInput] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)

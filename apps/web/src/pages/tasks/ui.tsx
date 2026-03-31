@@ -1,7 +1,7 @@
 import { Link } from 'react-router'
 import { Plus } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
-import { useAppStore } from '@/shared/stores/app'
+import { useTaskStore } from '@/entities/task/model/store'
 import { cn } from '@/shared/lib/cn'
 import { StatusIcon } from '@/shared/lib/status'
 import { Button } from '@/shared/ui/button'
@@ -21,7 +21,7 @@ function formatTokens(n: number) {
 }
 
 function TaskCard({ task }: { task: Task }) {
-  const subtasks = useAppStore(useShallow((s) => s.tasks.filter((t) => t.parent_id === task.id)))
+  const subtasks = useTaskStore(useShallow((s) => s.tasks.filter((t) => t.parent_id === task.id)))
 
   return (
     <Link
@@ -50,7 +50,7 @@ function TaskCard({ task }: { task: Task }) {
 }
 
 export function TasksPage() {
-  const tasks = useAppStore(useShallow((s) => s.tasks.filter((t) => !t.parent_id)))
+  const tasks = useTaskStore(useShallow((s) => s.tasks.filter((t) => !t.parent_id)))
 
   return (
     <div className="flex h-full flex-col">

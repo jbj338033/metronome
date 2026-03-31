@@ -1,13 +1,13 @@
 import { useEffect, useRef } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { useAppStore } from '@/shared/stores/app'
+import { useAgentStore } from '@/entities/agent/model/store'
 
 interface AgentTerminalProps {
   agentId: string
 }
 
 export function AgentTerminal({ agentId }: AgentTerminalProps) {
-  const output = useAppStore(useShallow((s) => s.agentOutput.get(agentId) || []))
+  const output = useAgentStore(useShallow((s) => s.agentOutput.get(agentId) || []))
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
