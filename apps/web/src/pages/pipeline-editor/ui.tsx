@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
+import { Workflow } from 'lucide-react'
 import { api } from '@/shared/api/client'
 import { PipelineCanvas } from '@/widgets/pipeline-canvas/ui'
 import { StepPanel } from '@/widgets/pipeline-canvas/step-panel'
-import { cn } from '@/shared/lib/cn'
+import { Input } from '@/shared/ui/input'
+import { Button } from '@/shared/ui/button'
 import type { Pipeline, PipelineStep } from '@metronome/types'
 
 export function PipelineEditorPage() {
@@ -14,7 +16,7 @@ export function PipelineEditorPage() {
   const [runCwd, setRunCwd] = useState('')
 
   useEffect(() => {
-    api.tasks.list().catch(() => {}) // warm up
+    api.tasks.list().catch(() => {})
     fetch('/api/pipelines').then((r) => r.json()).then(setPipelines)
   }, [])
 
@@ -38,14 +40,13 @@ export function PipelineEditorPage() {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Header */}
-      <div className="flex items-center gap-3 border-b border-zinc-800 px-6 py-3">
+      <div className="flex items-center gap-3 border-b border-border px-6 py-3">
         <h1 className="text-sm font-semibold">Pipelines</h1>
         <div className="ml-auto flex items-center gap-2">
           <select
             value={selected || ''}
             onChange={(e) => { setSelected(e.target.value || null); setSelectedStep(null) }}
-            className="rounded-md border border-zinc-800 bg-zinc-900 px-2 py-1 text-xs text-zinc-300 outline-none"
+            className="h-8 rounded-md border border-input bg-secondary px-2 text-xs text-secondary-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <option value="">select pipeline...</option>
             {pipelines.map((p) => (
@@ -56,12 +57,12 @@ export function PipelineEditorPage() {
       </div>
 
       {!pipeline ? (
-        <div className="flex flex-1 items-center justify-center text-sm text-zinc-600">
-          파이프라인을 선택해주세요
+        <div className="flex flex-1 flex-col items-center justify-center gap-3">
+          <Workflow size={32} strokeWidth={1} className="text-muted-foreground/40" />
+          <p className="text-sm text-muted-foreground">파이프라인을 선택해주세요</p>
         </div>
       ) : (
         <div className="flex flex-1 overflow-hidden">
-          {/* Canvas */}
           <div className="flex-1">
             <PipelineCanvas
               pipeline={pipeline}
@@ -71,45 +72,37 @@ export function PipelineEditorPage() {
             />
           </div>
 
-          {/* Right panel */}
-          <div className="w-64 shrink-0 flex-col border-l border-zinc-800 overflow-auto">
-            {/* Run controls */}
-            <div className="border-b border-zinc-800 p-4 space-y-2">
-              <input
+          <div className="w-64 shrink-0 flex-col border-l border-border overflow-auto">
+            <div className="border-b border-border p-4 space-y-2">
+              <Input
                 value={runPrompt}
                 onChange={(e) => setRunPrompt(e.target.value)}
                 placeholder="prompt..."
-                className="w-full rounded-md border border-zinc-800 bg-zinc-900 px-2 py-1 text-xs text-zinc-300 placeholder-zinc-600 outline-none"
+                className="h-7 text-xs"
               />
-              <input
+              <Input
                 value={runCwd}
                 onChange={(e) => setRunCwd(e.target.value)}
                 placeholder="working directory..."
-                className="w-full rounded-md border border-zinc-800 bg-zinc-900 px-2 py-1 text-xs text-zinc-300 placeholder-zinc-600 outline-none"
+                className="h-7 text-xs"
               />
-              <button
+              <Button
                 onClick={handleRun}
                 disabled={!runPrompt.trim() || !runCwd.trim()}
-                className={cn(
-                  'w-full rounded-md py-1.5 text-xs transition-colors',
-                  runPrompt.trim() && runCwd.trim()
-                    ? 'bg-zinc-100 text-zinc-900 hover:bg-zinc-200'
-                    : 'bg-zinc-800 text-zinc-600',
-                )}
+                className="w-full"
+                size="sm"
               >
                 run pipeline
-              </button>
+              </Button>
             </div>
 
-            {/* Pipeline info */}
-            <div className="border-b border-zinc-800 p-4 space-y-1">
-              <div className="text-xs text-zinc-500">name: <span className="text-zinc-300">{pipeline.name}</span></div>
-              <div className="text-xs text-zinc-500">steps: <span className="text-zinc-300">{pipeline.steps.length}</span></div>
-              {pipeline.timeout && <div className="text-xs text-zinc-500">timeout: <span className="text-zinc-300">{pipeline.timeout}s</span></div>}
-              {pipeline.max_replan && <div className="text-xs text-zinc-500">max_replan: <span className="text-zinc-300">{pipeline.max_replan}</span></div>}
+            <div className="border-b border-border p-4 space-y-1">
+              <div className="text-xs text-muted-foreground">name: <span className="text-foreground/80">{pipeline.name}</span></div>
+              <div className="text-xs text-muted-foreground">steps: <span className="text-foreground/80">{pipeline.steps.length}</span></div>
+              {pipeline.timeout && <div className="text-xs text-muted-foreground">timeout: <span className="text-foreground/80">{pipeline.timeout}s</span></div>}
+              {pipeline.max_replan && <div className="text-xs text-muted-foreground">max_replan: <span className="text-foreground/80">{pipeline.max_replan}</span></div>}
             </div>
 
-            {/* Selected step */}
             {selectedStep && <StepPanel step={selectedStep} />}
           </div>
         </div>
