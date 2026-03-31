@@ -1,4 +1,4 @@
-export type AgentStatus = 'idle' | 'running' | 'completed' | 'failed' | 'killed'
+export type AgentStatus = 'idle' | 'running' | 'completed' | 'failed' | 'killed' | 'interrupted'
 
 export interface AgentType {
   id: string
@@ -31,5 +31,44 @@ export interface AgentSpawnRequest {
   cwd: string
   prompt: string
   session_id?: string
+  task_id?: string
   timeout?: number
+  system_prompt?: string
+}
+
+export interface AgentLog {
+  id: number
+  agent_id: string
+  task_id: string | null
+  stream: 'stdout' | 'stderr'
+  content: string
+  parsed_type: string | null
+  timestamp: string
+}
+
+export interface RunningAgent {
+  agentId: string
+  adapterId: string
+  taskId: string | null
+  pid: number | undefined
+}
+
+export interface AgentStats {
+  model: string
+  count: number
+  tokens_in: number
+  tokens_out: number
+  estimated_cost: number
+}
+
+export interface ModelTier {
+  name: string
+  models: string[]
+  input_cost: number
+  output_cost: number
+}
+
+export interface AgentStatsResponse {
+  stats: AgentStats[]
+  tiers: ModelTier[]
 }

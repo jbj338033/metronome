@@ -1,4 +1,4 @@
-export type StepStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped' | 'cancelled' | 'retrying'
+export type StepStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped' | 'cancelled' | 'retrying' | 'awaiting_approval'
 export type PipelineRunStatus = 'running' | 'completed' | 'failed' | 'cancelled' | 'interrupted' | 'awaiting_approval' | 'replanning'
 export type MergeStrategy = 'sequential' | 'manual'
 export type OnConflict = 'agent' | 'user'
@@ -47,6 +47,7 @@ export interface PipelineRun {
   project_id: string | null
   status: PipelineRunStatus
   input: string
+  error: string | null
   replan_count: number
   created_at: string
   ended_at: string | null
@@ -59,6 +60,7 @@ export interface StepRun {
   fan_index: number | null
   status: StepStatus
   agent_id: string | null
+  agent_model?: string | null
   input: string | null
   output: string | null
   artifacts: string
@@ -67,4 +69,19 @@ export interface StepRun {
   ended_at: string | null
   verify_attempt: number | null
   parent_step_run_id: string | null
+}
+
+export interface PipelineRunRequest {
+  prompt: string
+  cwd: string
+  project_id?: string
+}
+
+export interface FileChange {
+  id: number
+  run_id: string
+  step_id: string
+  file_path: string
+  change_type: string
+  created_at: string
 }

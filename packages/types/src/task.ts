@@ -1,4 +1,4 @@
-export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'failed' | 'cancelled'
+export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'failed' | 'cancelled' | 'interrupted'
 
 export interface Task {
   id: string
@@ -23,4 +23,13 @@ export interface CreateTaskRequest {
   parent_id?: string
   priority?: number
   tags?: string[]
+}
+
+export interface UpdateTaskRequest {
+  title?: string
+  description?: string
+  status?: TaskStatus
+  priority?: number
+  tags?: string[]
+  result?: string
 }
