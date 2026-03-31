@@ -1,5 +1,4 @@
 name: thorough
-max_replan: 3
 timeout: 3600
 
 steps:
@@ -11,30 +10,20 @@ steps:
     blueprint: coder
     depends_on: [plan]
     fan_out: "plan.subtasks"
-    merge: all
     max_concurrency: 3
-    merge_strategy: sequential
-    on_conflict: agent
     timeout: 600
-    retry: { max: 2, backoff: exponential }
+    retry: { max: 1, backoff: exponential }
+    verify:
+      blueprint: verifier
+      max_fix_attempts: 2
+      pass_condition: "implement__verify.passed"
+      include_in_fix: [issues, artifacts]
 
   - id: review
     blueprint: reviewer
     depends_on: [implement]
     context:
       - step: implement
-        include: [artifacts]
+        include: [artifacts, structured]
     timeout: 300
-
-  - id: fix
-    blueprint: coder
-    depends_on: [review]
-    condition: "review.has_issues"
-    on_skip: complete
-    timeout: 600
-
-  - id: verify
-    blueprint: verifier
-    depends_on: [fix]
     approval: true
-    timeout: 300
