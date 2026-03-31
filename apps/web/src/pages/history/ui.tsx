@@ -4,7 +4,7 @@ import { Clock } from 'lucide-react'
 import { api } from '@/shared/api/client'
 import { useTaskStore } from '@/entities/task/model/store'
 import { StatusIcon } from '@/shared/lib/status'
-import { cn } from '@/shared/lib/cn'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
 import type { PipelineRun } from '@metronome/types'
 
 const statusMap: Record<string, string> = {
@@ -33,10 +33,7 @@ function formatDuration(start: string, end: string | null) {
   return `${Math.floor(s / 60)}m ${s % 60}s`
 }
 
-type Tab = 'runs' | 'tasks'
-
 export function HistoryPage() {
-  const [tab, setTab] = useState<Tab>('runs')
   const [runs, setRuns] = useState<PipelineRun[]>([])
   const tasks = useTaskStore((s) => s.tasks)
 
@@ -48,30 +45,20 @@ export function HistoryPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-4 border-b border-border px-6 py-3">
-        <h1 className="text-sm font-semibold">History</h1>
-        <div className="ml-auto flex gap-1">
-          {(['runs', 'tasks'] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={cn(
-                'rounded-md px-2.5 py-1 text-xs transition-colors',
-                tab === t ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground',
-              )}
-            >
-              {t === 'runs' ? 'pipeline runs' : 'tasks'}
-            </button>
-          ))}
+      <Tabs defaultValue="runs" className="flex h-full flex-col">
+        <div className="flex items-center gap-4 border-b border-border px-6 py-3">
+          <h1 className="text-sm font-semibold">History</h1>
+          <TabsList className="ml-auto h-7">
+            <TabsTrigger value="runs" className="text-xs px-2.5 h-6">pipeline runs</TabsTrigger>
+            <TabsTrigger value="tasks" className="text-xs px-2.5 h-6">tasks</TabsTrigger>
+          </TabsList>
         </div>
-      </div>
 
-      <div className="flex-1 overflow-auto">
-        {tab === 'runs' ? (
-          completedRuns.length === 0 ? (
+        <TabsContent value="runs" className="flex-1 overflow-auto mt-0">
+          {completedRuns.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-3">
               <Clock size={32} strokeWidth={1} className="text-muted-foreground/40" />
-              <p className="text-sm text-muted-foreground">실행 기록이 없어요</p>
+              <p className="text-sm text-muted-foreground">no runs yet</p>
             </div>
           ) : (
             completedRuns.map((run) => {
@@ -94,12 +81,14 @@ export function HistoryPage() {
                 </Link>
               )
             })
-          )
-        ) : (
-          tasks.length === 0 ? (
+          )}
+        </TabsContent>
+
+        <TabsContent value="tasks" className="flex-1 overflow-auto mt-0">
+          {tasks.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-3">
               <Clock size={32} strokeWidth={1} className="text-muted-foreground/40" />
-              <p className="text-sm text-muted-foreground">태스크가 없어요</p>
+              <p className="text-sm text-muted-foreground">no tasks yet</p>
             </div>
           ) : (
             tasks.map((task) => (
@@ -117,9 +106,9 @@ export function HistoryPage() {
                 <span className="text-xs text-muted-foreground">{formatTime(task.created_at)}</span>
               </div>
             ))
-          )
-        )}
-      </div>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
