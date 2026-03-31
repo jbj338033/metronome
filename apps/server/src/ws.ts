@@ -1,10 +1,11 @@
+import type { Context } from 'hono'
 import type { WSContext } from 'hono/ws'
 import { agentManager } from './agents/manager'
 
 const clients = new Map<string, { ws: WSContext; topics: Set<string> }>()
 let clientId = 0
 
-export function handleWebSocket(c: any) {
+export function handleWebSocket(_c: Context) {
   return {
     onOpen(_event: Event, ws: WSContext) {
       const id = String(++clientId)
@@ -23,7 +24,7 @@ export function handleWebSocket(c: any) {
         const client = [...clients.entries()].find(([, v]) => v.ws === ws)
         if (!client) return
 
-        const [id, state] = client
+        const [, state] = client
 
         if (msg.type === 'subscribe') {
           for (const topic of msg.payload.topics) {
@@ -40,9 +41,7 @@ export function handleWebSocket(c: any) {
         if (msg.type === 'agent:input') {
           agentManager.sendInput(msg.payload.agentId, msg.payload.content)
         }
-      } catch {
-        // ignore malformed messages
-      }
+      } catch {}
     },
 
     onClose(_event: CloseEvent, ws: WSContext) {
@@ -58,9 +57,13 @@ export function handleWebSocket(c: any) {
 
 export function broadcast(topic: string, event: string, data: unknown) {
   const msg = JSON.stringify({ topic, event, data, ts: Date.now() })
-  for (const [, { ws, topics }] of clients) {
+  for (const [id, { ws, topics }] of clients) {
     if (topics.has(topic) || topic === 'system') {
-      ws.send(msg)
+      try {
+        ws.send(msg)
+      } catch {
+        clients.delete(id)
+      }
     }
   }
 }
