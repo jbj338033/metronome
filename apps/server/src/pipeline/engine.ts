@@ -1,3 +1,4 @@
+import fs from 'fs'
 import { v4 as uuid } from 'uuid'
 import { getDb } from '../db'
 import { loadPipeline } from './loader'
@@ -65,32 +66,93 @@ class PipelineEngineImpl {
     runId: string,
     input: { prompt: string; cwd: string },
   ) {
-    const orchestratorStep: PipelineStep = { id: '__orchestrate', blueprint: 'orchestrator' }
-    const orchestratorResult = await this.runner.execute(
-      orchestratorStep, runId, input.prompt, input.cwd, [],
-    )
+    let dirListing = ''
+    try {
+      const entries = fs.readdirSync(input.cwd, { withFileTypes: true })
+        .filter((e) => !e.name.startsWith('.') && e.name !== 'node_modules')
+        .slice(0, 50)
+        .map((e) => `${e.isDirectory() ? 'd' : 'f'} ${e.name}`)
+      dirListing = entries.join('\n')
+    } catch {}
 
-    const plan = orchestratorResult.structured as {
-      spec?: { goal?: string }
-      steps?: PipelineStep[]
-      final_verify?: string
-      max_replan?: number
-    } | null
+    const basePrompt = `[working directory]\n${input.cwd}\n\n[directory listing]\n${dirListing || '(empty)'}\n\n[request]\n${input.prompt}`
+    let interviewContext = ''
 
-    if (!plan?.steps?.length) {
-      this.markRunStatus(runId, 'failed')
+    for (let round = 0; round < 3; round++) {
+      const prompt = interviewContext
+        ? `${basePrompt}\n\n[previous answers]\n${interviewContext}`
+        : basePrompt
+
+      const orchestratorStep: PipelineStep = {
+        id: round === 0 ? '__orchestrate' : `__orchestrate_r${round}`,
+        blueprint: 'orchestrator',
+      }
+      const result = await this.runner.execute(
+        orchestratorStep, runId, prompt, input.cwd, [],
+      )
+
+      const output = result.structured as {
+        interview?: { questions: Array<{ id: string; question: string; options?: string[] }> }
+        spec?: { goal?: string }
+        steps?: PipelineStep[]
+        final_verify?: string
+        max_replan?: number
+      } | null
+
+      if (output?.interview?.questions?.length) {
+        this.markRunStatus(runId, 'interviewing')
+        broadcast(`pipeline:${runId}`, 'interview', {
+          runId,
+          round,
+          questions: output.interview.questions,
+        })
+
+        const answers = await this.waitForInterviewResponse(runId)
+        if (!answers) {
+          this.markRunStatus(runId, 'cancelled')
+          return
+        }
+
+        interviewContext += answers.map((a) => `Q: ${a.question}\nA: ${a.answer}`).join('\n\n') + '\n\n'
+        this.markRunStatus(runId, 'running')
+        continue
+      }
+
+      if (output?.steps?.length) {
+        const pipeline = {
+          name: '__orchestrated',
+          max_replan: output.max_replan ?? 2,
+          timeout: 3600,
+          steps: output.steps,
+          final_verify: output.final_verify,
+        }
+        await this.execute(runId, pipeline, input)
+        return
+      }
+
+      this.markRunStatus(runId, 'failed', 'orchestrator produced no valid output')
       return
     }
 
-    const pipeline = {
-      name: '__orchestrated',
-      max_replan: plan.max_replan ?? 2,
-      timeout: 3600,
-      steps: plan.steps,
-      final_verify: plan.final_verify,
-    }
+    this.markRunStatus(runId, 'failed', 'interview exceeded max rounds')
+  }
 
-    await this.execute(runId, pipeline, input)
+  private waitForInterviewResponse(runId: string): Promise<Array<{ question: string; answer: string }> | null> {
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        events.removeListener('interview:response', handler)
+        resolve(null)
+      }, 30 * 60 * 1000)
+
+      const handler = (rid: string, answers: Array<{ question: string; answer: string }>) => {
+        if (rid !== runId) return
+        clearTimeout(timeout)
+        events.removeListener('interview:response', handler)
+        resolve(answers)
+      }
+
+      events.on('interview:response', handler)
+    })
   }
 
   cancel(runId: string) {
