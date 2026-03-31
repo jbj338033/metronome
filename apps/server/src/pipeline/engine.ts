@@ -1,6 +1,6 @@
 import { v4 as uuid } from 'uuid'
 import { getDb } from '../db'
-import { loadPipeline, loadBlueprint } from './loader'
+import { loadPipeline } from './loader'
 import { DagScheduler } from './scheduler'
 import { StepRunner, type StepContext } from './runner'
 import { evaluateCondition } from './condition'
@@ -19,9 +19,6 @@ class PipelineEngineImpl {
   private activeRuns = new Map<string, { cancelled: boolean }>()
   private runner = new StepRunner()
 
-  /**
-   * 파이프라인 실행 시작 — runId 즉시 반환, 백그라운드 실행
-   */
   start(pipelineId: string, input: { prompt: string; cwd: string; projectId?: string }): string {
     const pipeline = loadPipeline(pipelineId)
     if (!pipeline) throw new Error(`pipeline not found: ${pipelineId}`)
@@ -37,16 +34,15 @@ class PipelineEngineImpl {
 
     broadcast(`pipeline:${runId}`, 'status', { runId, status: 'running' })
 
-    // 백그라운드 실행
     this.execute(runId, pipeline, input).catch((err) => {
       console.error(`pipeline ${runId} fatal error:`, err)
-      this.markRunStatus(runId, 'failed')
+      this.markRunStatus(runId, 'failed', err instanceof Error ? err.message : String(err))
     })
 
     return runId
   }
 
-  async startFromPrompt(input: { prompt: string; cwd: string; projectId?: string }): Promise<string> {
+  startFromPrompt(input: { prompt: string; cwd: string; projectId?: string }): string {
     const runId = uuid()
     const db = getDb()
     db.prepare(`
@@ -57,7 +53,18 @@ class PipelineEngineImpl {
     this.activeRuns.set(runId, { cancelled: false })
     broadcast(`pipeline:${runId}`, 'status', { runId, status: 'running' })
 
-    // orchestrator 에이전트로 파이프라인 구조 생성
+    this.orchestrateAndExecute(runId, input).catch((err) => {
+      console.error(`orchestrated pipeline ${runId} fatal error:`, err)
+      this.markRunStatus(runId, 'failed', err instanceof Error ? err.message : String(err))
+    })
+
+    return runId
+  }
+
+  private async orchestrateAndExecute(
+    runId: string,
+    input: { prompt: string; cwd: string },
+  ) {
     const orchestratorStep: PipelineStep = { id: '__orchestrate', blueprint: 'orchestrator' }
     const orchestratorResult = await this.runner.execute(
       orchestratorStep, runId, input.prompt, input.cwd, [],
@@ -72,10 +79,9 @@ class PipelineEngineImpl {
 
     if (!plan?.steps?.length) {
       this.markRunStatus(runId, 'failed')
-      throw new Error('orchestrator produced no steps')
+      return
     }
 
-    // 동적 파이프라인 실행
     const pipeline = {
       name: '__orchestrated',
       max_replan: plan.max_replan ?? 2,
@@ -84,12 +90,7 @@ class PipelineEngineImpl {
       final_verify: plan.final_verify,
     }
 
-    this.execute(runId, pipeline, input).catch((err) => {
-      console.error(`orchestrated pipeline ${runId} fatal error:`, err)
-      this.markRunStatus(runId, 'failed')
-    })
-
-    return runId
+    await this.execute(runId, pipeline, input)
   }
 
   cancel(runId: string) {
@@ -98,7 +99,6 @@ class PipelineEngineImpl {
 
     run.cancelled = true
 
-    // 실행 중인 에이전트 킬
     const db = getDb()
     const runningSteps = db.prepare("SELECT agent_id FROM step_runs WHERE run_id = ? AND status = 'running'").all(runId) as { agent_id: string }[]
     for (const { agent_id } of runningSteps) {
@@ -141,12 +141,10 @@ class PipelineEngineImpl {
     const states = new Map<string, StepState>()
     const results = new Map<string, StepContext>()
 
-    // 모든 스텝을 pending으로 초기화
     for (const id of scheduler.getAllStepIds()) {
       states.set(id, { stepId: id, status: 'pending' })
     }
 
-    // 전체 타임아웃
     const pipelineTimeout = pipeline.timeout
       ? setTimeout(() => this.cancel(runId), pipeline.timeout * 1000)
       : null
@@ -157,12 +155,10 @@ class PipelineEngineImpl {
 
         const readySteps = scheduler.getReadySteps(states)
         if (readySteps.length === 0) {
-          // 모든 스텝이 완료/스킵/실패 상태인지 확인
           const allDone = [...states.values()].every(
             (s) => s.status === 'completed' || s.status === 'skipped' || s.status === 'failed' || s.status === 'cancelled',
           )
           if (allDone) {
-            // 실패한 스텝이 있으면 replan 시도
             const hasFailure = [...states.values()].some((s) => s.status === 'failed')
             if (hasFailure && pipeline.max_replan) {
               const replanned = await this.replan(runId, input, scheduler, states, results, pipeline.max_replan)
@@ -171,7 +167,6 @@ class PipelineEngineImpl {
             break
           }
 
-          // 아직 running인 스텝이 있으면 이벤트 대기
           await new Promise<void>((resolve) => {
             const onStep = (rid: string) => {
               if (rid !== runId) return
@@ -191,16 +186,13 @@ class PipelineEngineImpl {
           continue
         }
 
-        // 준비된 스텝들 실행
         const executing = readySteps.map(async (step) => {
-          // 조건 평가
           if (step.condition) {
             const conditionMet = evaluateCondition(step.condition, results)
             if (!conditionMet) {
               states.set(step.id, { stepId: step.id, status: 'skipped' })
               broadcast(`pipeline:${runId}`, 'step', { stepId: step.id, status: 'skipped' })
 
-              // on_skip 처리
               if (step.on_skip === 'propagate') {
                 this.propagateSkip(step.id, scheduler, states, runId)
               }
@@ -208,10 +200,9 @@ class PipelineEngineImpl {
             }
           }
 
-          // 승인 게이트
           if (step.approval) {
             states.set(step.id, { stepId: step.id, status: 'pending' })
-            broadcast(`pipeline:${runId}`, 'step', { stepId: step.id, status: 'awaiting_approval' as any })
+            broadcast(`pipeline:${runId}`, 'step', { stepId: step.id, status: 'awaiting_approval' })
             this.markRunStatus(runId, 'awaiting_approval')
 
             const approved = await this.waitForApproval(runId, step.id)
@@ -225,7 +216,6 @@ class PipelineEngineImpl {
 
           states.set(step.id, { stepId: step.id, status: 'running' })
 
-          // fan_out 처리
           if (step.fan_out) {
             await this.executeFanOut(step, runId, input, results, states)
           } else if (step.verify) {
@@ -242,7 +232,6 @@ class PipelineEngineImpl {
       this.activeRuns.delete(runId)
     }
 
-    // 최종 상태 결정
     const hasFailure = [...states.values()].some((s) => s.status === 'failed')
     const wasCancelled = [...states.values()].some((s) => s.status === 'cancelled')
 
@@ -284,7 +273,6 @@ class PipelineEngineImpl {
         const result = await this.runner.execute(step, runId, input.prompt, input.cwd, previousContext)
         results.set(step.id, result)
 
-        // ground truth 검증
         if (step.verify_command) {
           const verify = await this.runner.verifyWithCommand(step.verify_command, input.cwd)
           broadcast(`pipeline:${runId}`, 'verify', {
@@ -301,7 +289,7 @@ class PipelineEngineImpl {
         states.set(step.id, { stepId: step.id, status: 'completed', structured: result.structured })
         events.emit('step:completed', runId, step.id)
         return
-      } catch (err) {
+      } catch {
         if (attempt === maxRetries) {
           states.set(step.id, { stepId: step.id, status: 'failed' })
           events.emit('step:failed', runId, step.id)
@@ -322,20 +310,18 @@ class PipelineEngineImpl {
     const maxFixes = verify.max_fix_attempts
 
     for (let fixAttempt = 0; fixAttempt <= maxFixes; fixAttempt++) {
-      // 스텝 실행 (첫 시도 또는 fix 재시도)
       if (fixAttempt > 0) {
-        // fix 시도: 이전 검증 실패 정보를 컨텍스트에 포함
         const verifyResult = results.get(`${step.id}__verify`)
         const fixContext: string[] = []
 
         if (verify.include_in_fix.includes('issues') && verifyResult?.structured) {
-          fixContext.push(`[검증 실패 — 시도 ${fixAttempt}]\n${JSON.stringify(verifyResult.structured, null, 2)}`)
+          fixContext.push(`[verification failed — attempt ${fixAttempt}]\n${JSON.stringify(verifyResult.structured, null, 2)}`)
         }
         if (verify.include_in_fix.includes('output') && results.get(step.id)?.output) {
-          fixContext.push(`[이전 출력]\n${results.get(step.id)!.output.slice(-2000)}`)
+          fixContext.push(`[previous output]\n${results.get(step.id)!.output.slice(-2000)}`)
         }
         if (verify.include_in_fix.includes('artifacts') && results.get(step.id)?.artifacts.length) {
-          fixContext.push(`[변경된 파일]\n${results.get(step.id)!.artifacts.join('\n')}`)
+          fixContext.push(`[changed files]\n${results.get(step.id)!.artifacts.join('\n')}`)
         }
 
         broadcast(`pipeline:${runId}`, 'step', {
@@ -349,11 +335,9 @@ class PipelineEngineImpl {
       }
 
       if (states.get(step.id)?.status !== 'completed') {
-        // 스텝 자체가 실패하면 verify 없이 종료
         return
       }
 
-      // 검증 실행
       const verifyStep: PipelineStep = {
         id: `${step.id}__verify`,
         blueprint: verify.blueprint,
@@ -381,7 +365,7 @@ class PipelineEngineImpl {
         })
 
         if (passed) {
-          return // 검증 통과
+          return
         }
       } catch {
         broadcast(`pipeline:${runId}`, 'verify', {
@@ -390,7 +374,6 @@ class PipelineEngineImpl {
       }
     }
 
-    // 모든 fix 시도 소진
     states.set(step.id, { stepId: step.id, status: 'failed' })
     events.emit('step:failed', runId, step.id)
     broadcast(`pipeline:${runId}`, 'step', {
@@ -405,7 +388,6 @@ class PipelineEngineImpl {
     results: Map<string, StepContext>,
     states: Map<string, StepState>,
   ) {
-    // fan_out 경로에서 배열 추출
     const parts = step.fan_out!.split('.')
     const [sourceStepId, ...path] = parts
     const sourceResult = results.get(sourceStepId)
@@ -429,14 +411,14 @@ class PipelineEngineImpl {
     const maxConcurrency = step.max_concurrency || items.length
     const allResults: StepContext[] = []
 
-    // 동시성 제한 실행
     for (let i = 0; i < items.length; i += maxConcurrency) {
       const batch = items.slice(i, i + maxConcurrency)
       const batchResults = await Promise.all(
         batch.map(async (item, batchIdx) => {
           const fanIndex = i + batchIdx
+          const rec = item as Record<string, string> | null
           const itemPrompt = typeof item === 'object' && item !== null
-            ? `${(item as any).title || ''}\n${(item as any).description || ''}`
+            ? `${rec?.title ?? ''}\n${rec?.description ?? ''}`
             : String(item)
 
           try {
@@ -531,7 +513,7 @@ class PipelineEngineImpl {
       .map(([id]) => id)
       .join(', ')
 
-    const replanPrompt = `이전 계획의 일부가 실패했어. 재계획해줘.\n\n[완료된 스텝]\n${completedSummary}\n\n[실패한 스텝]\n${failedSummary}\n\n[원래 요청]\n${input.prompt}`
+    const replanPrompt = `Some steps of the previous plan failed. Replan.\n\n[completed steps]\n${completedSummary}\n\n[failed steps]\n${failedSummary}\n\n[original request]\n${input.prompt}`
 
     const orchestratorStep: PipelineStep = { id: '__replan', blueprint: 'orchestrator' }
     try {
@@ -542,7 +524,6 @@ class PipelineEngineImpl {
       const plan = replanResult.structured as { steps?: PipelineStep[] } | null
       if (!plan?.steps?.length) return false
 
-      // 완료된 스텝 유지, pending 스텝을 새 것으로 교체
       const completedIds = new Set(
         [...states.entries()].filter(([, s]) => s.status === 'completed').map(([id]) => id),
       )
@@ -550,14 +531,12 @@ class PipelineEngineImpl {
         ...plan.steps.filter((s) => !completedIds.has(s.id)),
       ]
 
-      // 새 스텝을 pending으로 등록
       for (const step of newSteps) {
         if (!states.has(step.id)) {
           states.set(step.id, { stepId: step.id, status: 'pending' })
         }
       }
 
-      // DAG 재구성 (완료된 스텝 + 새 스텝)
       const allSteps = [
         ...plan.steps,
       ]
@@ -581,20 +560,19 @@ class PipelineEngineImpl {
     events.emit('step:failed', runId, '__manual_replan')
   }
 
-  private markRunStatus(runId: string, status: string) {
+  private markRunStatus(runId: string, status: string, error?: string) {
     const db = getDb()
     if (status === 'completed' || status === 'failed' || status === 'cancelled' || status === 'interrupted') {
-      db.prepare("UPDATE pipeline_runs SET status = ?, ended_at = datetime('now') WHERE id = ?").run(status, runId)
+      db.prepare("UPDATE pipeline_runs SET status = ?, error = ?, ended_at = datetime('now') WHERE id = ?").run(status, error || null, runId)
     } else {
       db.prepare('UPDATE pipeline_runs SET status = ? WHERE id = ?').run(status, runId)
     }
-    broadcast(`pipeline:${runId}`, 'status', { runId, status })
+    broadcast(`pipeline:${runId}`, 'status', { runId, status, error })
   }
 }
 
-const key = '__metronome_pipeline_engine__'
-if (!(globalThis as any)[key]) {
-  (globalThis as any)[key] = new PipelineEngineImpl()
-}
+const key = Symbol.for('metronome.pipeline_engine')
+const g = globalThis as unknown as Record<symbol, PipelineEngineImpl>
+g[key] = new PipelineEngineImpl()
 
-export const pipelineEngine: PipelineEngineImpl = (globalThis as any)[key]
+export const pipelineEngine: PipelineEngineImpl = g[key]
