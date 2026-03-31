@@ -22,6 +22,25 @@ pipelineRoutes.put('/:name', async (c) => {
   return c.json(body)
 })
 
+pipelineRoutes.post('/run-dynamic', async (c) => {
+  const body = await c.req.json<{ prompt: string; cwd: string; project_id?: string }>()
+  try {
+    const runId = await pipelineEngine.startFromPrompt({
+      prompt: body.prompt,
+      cwd: body.cwd,
+      projectId: body.project_id,
+    })
+    return c.json({ runId }, 201)
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, 400)
+  }
+})
+
+pipelineRoutes.post('/runs/:id/replan', (c) => {
+  pipelineEngine.requestReplan(c.req.param('id'))
+  return c.json({ ok: true })
+})
+
 pipelineRoutes.post('/:name/run', async (c) => {
   const name = c.req.param('name')
   const body = await c.req.json<{ prompt: string; cwd: string; project_id?: string }>()
