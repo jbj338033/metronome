@@ -44,12 +44,11 @@ export function CommandPalette() {
 
   const commands = useMemo<Command[]>(() => {
     const base: Command[] = [
-      { id: 'nav:dashboard', label: 'Go to Dashboard', hint: '1', group: 'nav', action: () => navigate('/') },
-      { id: 'nav:chat', label: 'Go to Chat', hint: '2', group: 'nav', action: () => navigate('/chat') },
-      { id: 'nav:tasks', label: 'Go to Tasks', hint: '3', group: 'nav', action: () => navigate('/tasks') },
-      { id: 'nav:pipelines', label: 'Go to Pipelines', hint: '4', group: 'nav', action: () => navigate('/pipelines/editor') },
-      { id: 'nav:agents', label: 'Go to Agents', hint: '5', group: 'nav', action: () => navigate('/agents') },
-      { id: 'action:new-chat', label: 'New Chat', hint: '⌘N', group: 'nav', action: () => navigate('/chat') },
+      { id: 'nav:live', label: 'Go to Live', hint: '1', group: 'nav', action: () => navigate('/live') },
+      { id: 'nav:launch', label: 'Go to Launch', hint: '2', group: 'nav', action: () => navigate('/launch') },
+      { id: 'nav:history', label: 'Go to History', hint: '3', group: 'nav', action: () => navigate('/history') },
+      { id: 'nav:config', label: 'Go to Config', hint: '4', group: 'nav', action: () => navigate('/config') },
+      { id: 'action:new-launch', label: 'New Launch', hint: '⌘N', group: 'nav', action: () => navigate('/launch') },
     ]
 
     const taskCmds: Command[] = tasks.slice(0, 10).map((t) => ({
@@ -100,7 +99,7 @@ export function CommandPalette() {
       />
 
       {/* palette */}
-      <div className="relative w-full max-w-md rounded-lg border border-border bg-popover shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200">
+      <div className="relative w-full max-w-md rounded-lg border border-border bg-surface-3 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200">
         <div className="flex items-center gap-2 border-b border-border px-3">
           <Search size={14} className="text-muted-foreground" />
           <input
@@ -120,7 +119,7 @@ export function CommandPalette() {
               <>
                 {navItems.length > 0 && (
                   <div>
-                    <div className="px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
+                    <div className="px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/50">
                       navigation
                     </div>
                     {navItems.map((cmd) => {
@@ -150,7 +149,7 @@ export function CommandPalette() {
                 )}
                 {taskItems.length > 0 && (
                   <div>
-                    <div className="px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
+                    <div className="px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/50">
                       tasks
                     </div>
                     {taskItems.map((cmd) => {
