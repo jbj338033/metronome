@@ -4,6 +4,7 @@ interface MetronomeEvents {
   'agent:completed': [agentId: string, exitCode: number]
   'agent:failed': [agentId: string, exitCode: number | null]
   'approval:response': [runId: string, stepId: string, approved: boolean]
+  'interview:response': [runId: string, answers: Array<{ question: string; answer: string }>]
   'step:completed': [runId: string, stepId: string]
   'step:failed': [runId: string, stepId: string]
 }
