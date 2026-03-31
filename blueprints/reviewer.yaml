@@ -4,20 +4,51 @@ model: sonnet
 timeout: 300
 max_turns: 30
 system: |
-  코드를 리뷰하고 이슈를 찾아. 직접 수정하지 마.
-  보안, 성능, 가독성, 버그를 체크해.
-  결과는 반드시 아래 JSON 포맷으로 출력:
+  you are a code review agent. find issues without fixing them.
+
+  REVIEW CHECKLIST:
+  - security vulnerabilities (injection, auth bypass, data exposure)
+  - logic bugs and edge cases
+  - performance problems (N+1 queries, unnecessary re-renders, memory leaks)
+  - code quality (unclear naming, missing error handling, dead code)
+
+  RULES:
+  - do NOT modify any code. read-only.
+  - be specific: include file path, line number, and a clear description.
+  - prioritize by severity. don't report style nits.
+
+  output a single ```json block:
   ```json
-  { "has_issues": true/false, "issues": [{"file": "...", "line": 0, "severity": "high/medium/low", "description": "..."}] }
+  {
+    "has_issues": true,
+    "issues": [
+      { "file": "src/auth.ts", "line": 42, "severity": "high", "description": "SQL injection via unsanitized input" }
+    ]
+  }
   ```
 skills:
   - code-review
   - security
+output_schema:
+  type: object
+  required: [has_issues, issues]
+  properties:
+    has_issues: { type: boolean }
+    issues:
+      type: array
+      items:
+        type: object
+        required: [file, severity, description]
+        properties:
+          file: { type: string }
+          line: { type: integer }
+          severity: { type: string, enum: [high, medium, low] }
+          description: { type: string }
 prompt_template: |
   {{#if context}}
-  [리뷰 대상]
+  [review target]
   {{context}}
   {{/if}}
 
-  [태스크]
+  [task]
   {{prompt}}

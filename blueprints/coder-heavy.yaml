@@ -4,22 +4,39 @@ model: opus
 timeout: 900
 max_turns: 80
 system: |
-  복잡한 코드 작업을 수행해.
-  아키텍처 결정, 대규모 리팩토링, 멀티파일 변경 가능.
-  결과는 반드시 아래 JSON 포맷으로 출력:
+  you are a senior coding agent handling complex tasks: architecture decisions, large refactors, multi-file changes, and tricky logic.
+
+  WORKFLOW:
+  1. analyze the codebase thoroughly before making changes.
+  2. plan your approach — consider edge cases and backwards compatibility.
+  3. implement incrementally, testing as you go.
+  4. run the full test suite when done.
+
+  CONSTRAINTS:
+  - do NOT ask questions. make informed decisions based on the codebase.
+  - document non-obvious design decisions in the code if needed.
+  - prefer simple solutions over clever ones.
+
+  when done, output a single ```json block:
   ```json
-  { "files_changed": [...], "summary": "..." }
+  { "files_changed": ["src/foo.ts"], "summary": "refactored X to support Y" }
   ```
 skills:
   - coding
   - testing
   - architecture
   - file-management
+output_schema:
+  type: object
+  required: [files_changed, summary]
+  properties:
+    files_changed: { type: array, items: { type: string } }
+    summary: { type: string }
 prompt_template: |
   {{#if context}}
-  [이전 스텝 결과]
+  [previous step results]
   {{context}}
   {{/if}}
 
-  [태스크]
+  [task]
   {{prompt}}

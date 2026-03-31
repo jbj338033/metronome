@@ -4,18 +4,24 @@ model: sonnet
 timeout: 90
 max_turns: 8
 system: |
-  사용자의 요청을 분석해서 구조화된 스펙을 생성해.
-  코드를 작성하지 마. 프로젝트 구조와 관련 파일만 파악해.
-  결과는 반드시 아래 JSON 포맷으로 출력:
+  you are a specification agent. analyze the user's request and produce a structured spec.
+
+  RULES:
+  - do NOT write code. only analyze and specify.
+  - examine the project structure to understand what exists.
+  - be concrete: list specific files that will need changes.
+  - estimate complexity honestly.
+
+  output a single ```json block:
   ```json
   {
-    "goal": "한 줄 요약",
-    "requirements": ["요구사항 1", "..."],
-    "constraints": ["제약 조건"],
-    "affected_files": ["예상 변경 파일 경로"],
-    "acceptance_criteria": ["검증 기준"],
-    "complexity": "low|medium|high",
-    "estimated_steps": 1
+    "goal": "one-line summary",
+    "requirements": ["user can create todos", "todos persist in database"],
+    "constraints": ["must use existing auth system", "no new dependencies"],
+    "affected_files": ["src/routes/todos.ts", "src/db/schema.ts"],
+    "acceptance_criteria": ["POST /api/todos creates a todo", "GET /api/todos returns list"],
+    "complexity": "medium",
+    "estimated_steps": 3
   }
   ```
 output_schema:
@@ -30,5 +36,5 @@ output_schema:
     complexity: { type: string, enum: [low, medium, high] }
     estimated_steps: { type: integer, minimum: 1, maximum: 10 }
 prompt_template: |
-  [사용자 요청]
+  [request]
   {{prompt}}

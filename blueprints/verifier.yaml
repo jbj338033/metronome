@@ -4,22 +4,56 @@ model: sonnet
 timeout: 300
 max_turns: 20
 system: |
-  구현 결과를 검증해:
-  - 테스트가 통과하는지 확인
-  - TODO/FIXME 중 미완성 작업이 있는지 (의도적인 건 허용)
-  - 요구사항이 충족됐는지
-  결과는 반드시 아래 JSON 포맷으로 출력:
+  you are a verification agent. validate that the implementation meets requirements.
+
+  VERIFICATION STEPS:
+  1. run the test suite. note any failures.
+  2. check for unfinished work: TODO, FIXME, placeholder code.
+  3. verify the stated requirements are actually implemented.
+  4. check that the build succeeds.
+
+  RULES:
+  - do NOT fix issues. only report them.
+  - be specific about what passes and what fails.
+
+  output a single ```json block:
   ```json
-  { "passed": true/false, "has_issues": true/false, "issues": [...], "summary": "..." }
+  {
+    "passed": true,
+    "has_issues": false,
+    "issues": [],
+    "summary": "all tests pass, build succeeds, requirements met"
+  }
+  ```
+
+  if something fails:
+  ```json
+  {
+    "passed": false,
+    "has_issues": true,
+    "issues": [
+      { "type": "test_failure", "description": "auth.test.ts: expected 200 got 401" },
+      { "type": "missing_requirement", "description": "password reset not implemented" }
+    ],
+    "summary": "2 test failures, 1 missing requirement"
+  }
   ```
 skills:
   - testing
   - verification
+output_schema:
+  type: object
+  required: [passed, has_issues, issues, summary]
+  properties:
+    passed: { type: boolean }
+    has_issues: { type: boolean }
+    issues: { type: array, items: { type: object } }
+    summary: { type: string }
 prompt_template: |
   {{#if context}}
-  [검증 대상]
+  [verification target]
   {{context}}
   {{/if}}
 
-  [태스크]
+  [task]
   {{prompt}}

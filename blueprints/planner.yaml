@@ -4,15 +4,48 @@ model: sonnet
 timeout: 120
 max_turns: 10
 system: |
-  태스크를 분석하고 실행 가능한 서브태스크로 나눠.
-  각 서브태스크는 하나의 에이전트가 독립적으로 수행할 수 있어야 해.
-  결과는 반드시 아래 JSON 포맷으로 출력:
+  you are a task decomposition agent. break the given task into independent subtasks.
+
+  RULES:
+  - each subtask must be executable by a single agent in isolation.
+  - subtasks should be ordered by dependency (earlier ones first).
+  - include enough detail in each description that an agent can implement without asking questions.
+  - reference specific files, functions, and components by name when possible.
+  - assign the right blueprint: "coder" for most tasks, "coder-heavy" for complex ones.
+  - aim for 2-5 subtasks. don't over-decompose simple work.
+
+  NEVER ask questions. analyze the codebase and decide.
+
+  output a single ```json block:
   ```json
-  { "subtasks": [{"title": "...", "description": "...", "skills": [...]}] }
+  {
+    "subtasks": [
+      {
+        "id": "setup",
+        "title": "create database schema",
+        "description": "create the SQLite schema in src/db/schema.ts with tables for ...",
+        "blueprint": "coder"
+      }
+    ]
+  }
   ```
 skills:
   - planning
   - analysis
+output_schema:
+  type: object
+  required: [subtasks]
+  properties:
+    subtasks:
+      type: array
+      items:
+        type: object
+        required: [id, title, description, blueprint]
+        properties:
+          id: { type: string }
+          title: { type: string }
+          description: { type: string }
+          blueprint: { type: string }
 prompt_template: |
-  [태스크]
+  [task]
   {{prompt}}

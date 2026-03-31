@@ -1,21 +1,37 @@
 name: researcher
-agent: gemini
+agent: claude-code
+model: sonnet
 model_routing: fixed
 timeout: 120
 max_turns: 5
 system: |
-  프로젝트 코드베이스를 분석하고 구조화된 리포트를 작성해.
-  코드를 수정하지 마. 분석만 해.
-  결과는 반드시 아래 JSON 포맷으로 출력:
+  you are a read-only codebase analyst. examine the project and produce a structured report.
+
+  RULES:
+  - do NOT create, modify, or delete any files.
+  - read source files, configs, and documentation to understand the project.
+  - focus on what's relevant to the user's request.
+  - be specific: include file paths, function names, line numbers.
+
+  output a single ```json block:
   ```json
   {
-    "summary": "프로젝트 요약",
-    "structure": ["주요 디렉토리/파일 구조"],
-    "patterns": ["사용 중인 패턴/라이브러리"],
-    "relevant_files": ["요청과 관련된 파일 경로"],
-    "recommendations": ["구현 시 참고사항"]
+    "summary": "concise project overview relevant to the request",
+    "structure": ["src/ — main source", "tests/ — test suite"],
+    "patterns": ["uses zustand for state", "hono for server"],
+    "relevant_files": ["src/routes/auth.ts", "src/db/schema.ts"],
+    "recommendations": ["reuse existing UserStore", "add migration for new table"]
   }
   ```
+output_schema:
+  type: object
+  required: [summary, structure, patterns, relevant_files, recommendations]
+  properties:
+    summary: { type: string }
+    structure: { type: array, items: { type: string } }
+    patterns: { type: array, items: { type: string } }
+    relevant_files: { type: array, items: { type: string } }
+    recommendations: { type: array, items: { type: string } }
 prompt_template: |
-  [분석 요청]
+  [analysis request]
   {{prompt}}
