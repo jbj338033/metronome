@@ -6,6 +6,7 @@ import { StepRunner, type StepContext } from './runner'
 import { evaluateCondition } from './condition'
 import { agentManager } from '../agents/manager'
 import { broadcast } from '../ws'
+import { events } from '../events'
 import type { PipelineStep, StepStatus } from '@metronome/types'
 
 interface StepState {
@@ -64,10 +65,12 @@ class PipelineEngineImpl {
   }
 
   approve(runId: string, stepId: string) {
+    events.emit('approval:response', runId, stepId, true)
     broadcast(`pipeline:${runId}`, 'approval', { stepId, approved: true })
   }
 
   reject(runId: string, stepId: string) {
+    events.emit('approval:response', runId, stepId, false)
     broadcast(`pipeline:${runId}`, 'approval', { stepId, approved: false })
   }
 
@@ -114,8 +117,23 @@ class PipelineEngineImpl {
           )
           if (allDone) break
 
-          // 아직 running인 스텝이 있으면 대기
-          await new Promise((r) => setTimeout(r, 1000))
+          // 아직 running인 스텝이 있으면 이벤트 대기
+          await new Promise<void>((resolve) => {
+            const onStep = (rid: string) => {
+              if (rid !== runId) return
+              events.removeListener('step:completed', onStep)
+              events.removeListener('step:failed', onStep)
+              clearTimeout(fallback)
+              resolve()
+            }
+            events.on('step:completed', onStep)
+            events.on('step:failed', onStep)
+            const fallback = setTimeout(() => {
+              events.removeListener('step:completed', onStep)
+              events.removeListener('step:failed', onStep)
+              resolve()
+            }, 5000)
+          })
           continue
         }
 
@@ -156,6 +174,8 @@ class PipelineEngineImpl {
           // fan_out 처리
           if (step.fan_out) {
             await this.executeFanOut(step, runId, input, results, states)
+          } else if (step.verify) {
+            await this.executeWithVerification(step, runId, input, results, states)
           } else {
             await this.executeSingleStep(step, runId, input, results, states)
           }
@@ -188,15 +208,125 @@ class PipelineEngineImpl {
     results: Map<string, StepContext>,
     states: Map<string, StepState>,
   ) {
-    const previousContext = [...results.values()]
-    try {
-      const result = await this.runner.execute(step, runId, input.prompt, input.cwd, previousContext)
-      results.set(step.id, result)
-      states.set(step.id, { stepId: step.id, status: 'completed', structured: result.structured })
-    } catch (err) {
-      states.set(step.id, { stepId: step.id, status: 'failed' })
-      // 의존 스텝 일시정지는 getReadySteps가 자동 처리 (failed deps는 ready가 안 됨)
+    const maxRetries = step.retry?.max ?? 0
+    const backoffType = step.retry?.backoff ?? 'linear'
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      if (attempt > 0) {
+        const delay = backoffType === 'exponential'
+          ? Math.min(1000 * Math.pow(2, attempt - 1), 30_000)
+          : 1000 * attempt
+
+        states.set(step.id, { stepId: step.id, status: 'retrying' })
+        broadcast(`pipeline:${runId}`, 'step', {
+          stepId: step.id, status: 'retrying', attempt, maxRetries,
+        })
+
+        await new Promise((r) => setTimeout(r, delay))
+      }
+
+      const previousContext = [...results.values()]
+      try {
+        const result = await this.runner.execute(step, runId, input.prompt, input.cwd, previousContext)
+        results.set(step.id, result)
+        states.set(step.id, { stepId: step.id, status: 'completed', structured: result.structured })
+        events.emit('step:completed', runId, step.id)
+        return
+      } catch (err) {
+        if (attempt === maxRetries) {
+          states.set(step.id, { stepId: step.id, status: 'failed' })
+          events.emit('step:failed', runId, step.id)
+          return
+        }
+      }
     }
+  }
+
+  private async executeWithVerification(
+    step: PipelineStep,
+    runId: string,
+    input: { prompt: string; cwd: string },
+    results: Map<string, StepContext>,
+    states: Map<string, StepState>,
+  ) {
+    const verify = step.verify!
+    const maxFixes = verify.max_fix_attempts
+
+    for (let fixAttempt = 0; fixAttempt <= maxFixes; fixAttempt++) {
+      // 스텝 실행 (첫 시도 또는 fix 재시도)
+      if (fixAttempt > 0) {
+        // fix 시도: 이전 검증 실패 정보를 컨텍스트에 포함
+        const verifyResult = results.get(`${step.id}__verify`)
+        const fixContext: string[] = []
+
+        if (verify.include_in_fix.includes('issues') && verifyResult?.structured) {
+          fixContext.push(`[검증 실패 — 시도 ${fixAttempt}]\n${JSON.stringify(verifyResult.structured, null, 2)}`)
+        }
+        if (verify.include_in_fix.includes('output') && results.get(step.id)?.output) {
+          fixContext.push(`[이전 출력]\n${results.get(step.id)!.output.slice(-2000)}`)
+        }
+        if (verify.include_in_fix.includes('artifacts') && results.get(step.id)?.artifacts.length) {
+          fixContext.push(`[변경된 파일]\n${results.get(step.id)!.artifacts.join('\n')}`)
+        }
+
+        broadcast(`pipeline:${runId}`, 'step', {
+          stepId: step.id, status: 'retrying', fixAttempt, maxFixes,
+        })
+
+        const fixInput = { ...input, prompt: `${input.prompt}\n\n${fixContext.join('\n\n')}` }
+        await this.executeSingleStep(step, runId, fixInput, results, states)
+      } else {
+        await this.executeSingleStep(step, runId, input, results, states)
+      }
+
+      if (states.get(step.id)?.status !== 'completed') {
+        // 스텝 자체가 실패하면 verify 없이 종료
+        return
+      }
+
+      // 검증 실행
+      const verifyStep: PipelineStep = {
+        id: `${step.id}__verify`,
+        blueprint: verify.blueprint,
+        context: [{ step: step.id, include: ['output', 'artifacts', 'structured'] }],
+      }
+
+      broadcast(`pipeline:${runId}`, 'verify', {
+        stepId: step.id, attempt: fixAttempt, status: 'running',
+      })
+
+      try {
+        const verifyResult = await this.runner.execute(
+          verifyStep, runId, input.prompt, input.cwd, [...results.values()],
+        )
+        results.set(`${step.id}__verify`, verifyResult)
+
+        const passed = evaluateCondition(
+          verify.pass_condition,
+          new Map([[verifyStep.id, { structured: verifyResult.structured }]]),
+        )
+
+        broadcast(`pipeline:${runId}`, 'verify', {
+          stepId: step.id, attempt: fixAttempt, passed,
+          issues: verifyResult.structured,
+        })
+
+        if (passed) {
+          return // 검증 통과
+        }
+      } catch {
+        broadcast(`pipeline:${runId}`, 'verify', {
+          stepId: step.id, attempt: fixAttempt, passed: false, error: 'verification agent failed',
+        })
+      }
+    }
+
+    // 모든 fix 시도 소진
+    states.set(step.id, { stepId: step.id, status: 'failed' })
+    events.emit('step:failed', runId, step.id)
+    broadcast(`pipeline:${runId}`, 'step', {
+      stepId: step.id, status: 'failed', reason: 'verification_exhausted',
+    })
   }
 
   private async executeFanOut(
@@ -261,11 +391,18 @@ class PipelineEngineImpl {
     }
 
     results.set(step.id, mergedResult)
+    const fanStatus = allSucceeded ? 'completed' : 'failed'
     states.set(step.id, {
       stepId: step.id,
-      status: allSucceeded ? 'completed' : 'failed',
+      status: fanStatus,
       structured: mergedResult.structured,
     })
+
+    if (fanStatus === 'completed') {
+      events.emit('step:completed', runId, step.id)
+    } else {
+      events.emit('step:failed', runId, step.id)
+    }
   }
 
   private propagateSkip(
@@ -286,26 +423,19 @@ class PipelineEngineImpl {
 
   private waitForApproval(runId: string, stepId: string): Promise<boolean> {
     return new Promise((resolve) => {
-      const unsub = broadcast.__onApproval?.((rid: string, sid: string, approved: boolean) => {
-        if (rid === runId && sid === stepId) {
-          unsub?.()
-          resolve(approved)
-        }
-      })
+      const timeout = setTimeout(() => {
+        events.removeListener('approval:response', handler)
+        resolve(false)
+      }, 30 * 60 * 1000)
 
-      // DB 폴링 대체 (broadcast 훅이 없는 경우)
-      if (!unsub) {
-        // 간단한 폴링 — 프로덕션에서는 이벤트 기반으로
-        const poll = setInterval(() => {
-          // approval은 API에서 직접 처리하므로 여기서는 대기만
-        }, 5000)
-
-        // 임시: 30분 후 자동 타임아웃
-        setTimeout(() => {
-          clearInterval(poll)
-          resolve(false)
-        }, 30 * 60 * 1000)
+      const handler = (rid: string, sid: string, approved: boolean) => {
+        if (rid !== runId || sid !== stepId) return
+        clearTimeout(timeout)
+        events.removeListener('approval:response', handler)
+        resolve(approved)
       }
+
+      events.on('approval:response', handler)
     })
   }
 
