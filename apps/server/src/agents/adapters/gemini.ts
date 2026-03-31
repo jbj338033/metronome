@@ -14,8 +14,10 @@ export const geminiAdapter: AgentAdapter = {
   },
 
   buildCommand(opts: AgentSpawnOptions) {
-    const args = ['-p', opts.prompt]
-    return { cmd: 'gemini', args }
+    const args = ['-p']
+    if (opts.model) args.push('-m', opts.model)
+    args.push(opts.prompt)
+    return { cmd: 'gemini', args, env: opts.cwd ? { GEMINI_CWD: opts.cwd } : undefined }
   },
 
   parseOutput(chunk: string): AgentStreamEvent[] {
@@ -24,7 +26,13 @@ export const geminiAdapter: AgentAdapter = {
 
     for (const line of lines) {
       if (!line.trim()) continue
-      events.push({ type: 'text', content: line, timestamp: Date.now() })
+      try {
+        const parsed = JSON.parse(line)
+        if (parsed.type === 'system') continue
+        events.push({ type: 'text', content: parsed.text || parsed.content || line, timestamp: Date.now() })
+      } catch {
+        events.push({ type: 'text', content: line, timestamp: Date.now() })
+      }
     }
 
     return events
