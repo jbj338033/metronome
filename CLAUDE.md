@@ -31,7 +31,7 @@ pnpm -F @metronome/web dev      # web only
 ## Server conventions
 
 - `better-sqlite3` directly. no ORM. typed queries in `db/queries.ts`
-- `globalThis` singletons for `AgentManager` and `PipelineEngine` (survive HMR)
+- `globalThis` singletons for `AgentManager`, `PipelineEngine`, `EventEmitter` (recreated on every module load)
 - REST for commands, WebSocket for streaming. never mix
 - agent adapters implement `AgentAdapter` interface in `agents/adapter.ts`
 - pipeline engine split: scheduler, runner, condition, parser, engine
@@ -60,6 +60,6 @@ pnpm -F @metronome/web dev      # web only
 
 - claude `--print` requires `--verbose` when using `--output-format stream-json`
 - claude needs `--dangerously-skip-permissions` to write files in `--print` mode
-- agent stdin is `ignore` (prompt via args). `sendInput` won't work with current config
+- agent stdin is `pipe` — prompt is passed via args, but stdin is available for `sendInput`
 - `apps/server` runs from its own cwd — DB path resolves relative to project root via `import.meta.url`
 - vite dev proxies `/api` and `/ws` to server (port 3000). in production, server serves static files directly
