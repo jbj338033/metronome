@@ -8,17 +8,17 @@ function Field({ label, value }: { label: string; value: string | number | boole
   if (value == null || value === '') return null
   return (
     <div className="flex items-baseline justify-between gap-4">
-      <span className="text-xs text-zinc-500">{label}</span>
-      <span className="font-[var(--font-mono)] text-xs text-zinc-300">{String(value)}</span>
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className="font-mono text-xs text-foreground/80">{String(value)}</span>
     </div>
   )
 }
 
 export function StepPanel({ step }: StepPanelProps) {
   return (
-    <div className="border-t border-zinc-800 p-4">
-      <div className="mb-3 text-xs font-medium text-zinc-400">
-        step: <span className="text-zinc-200">{step.id}</span>
+    <div className="border-t border-border p-4">
+      <div className="mb-3 text-xs font-medium text-muted-foreground">
+        step: <span className="text-foreground">{step.id}</span>
       </div>
       <div className="space-y-1.5">
         <Field label="blueprint" value={step.blueprint} />

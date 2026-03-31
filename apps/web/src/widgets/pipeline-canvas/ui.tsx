@@ -5,8 +5,6 @@ import {
   Controls,
   type Node,
   type Edge,
-  type OnNodesChange,
-  type OnEdgesChange,
   type OnConnect,
   useNodesState,
   useEdgesState,
@@ -19,11 +17,12 @@ import type { Pipeline, PipelineStep } from '@metronome/types'
 
 const nodeTypes = { step: StepNode }
 
+const EDGE_COLOR = 'oklch(0.4 0 0)'
+
 function pipelineToFlow(pipeline: Pipeline): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = []
   const edges: Edge[] = []
 
-  // 간단한 자동 레이아웃: 의존성 깊이 기반 x좌표
   const depth = new Map<string, number>()
   const getDepth = (step: PipelineStep): number => {
     if (depth.has(step.id)) return depth.get(step.id)!
@@ -43,7 +42,6 @@ function pipelineToFlow(pipeline: Pipeline): { nodes: Node[]; edges: Edge[] } {
 
   pipeline.steps.forEach((s) => getDepth(s))
 
-  // 같은 depth의 노드를 세로로 배치
   const byDepth = new Map<number, PipelineStep[]>()
   for (const step of pipeline.steps) {
     const d = depth.get(step.id) || 0
@@ -71,8 +69,8 @@ function pipelineToFlow(pipeline: Pipeline): { nodes: Node[]; edges: Edge[] } {
           id: `${dep}-${step.id}`,
           source: dep,
           target: step.id,
-          markerEnd: { type: MarkerType.ArrowClosed, width: 12, height: 12, color: '#52525b' },
-          style: { stroke: '#52525b', strokeWidth: 1.5 },
+          markerEnd: { type: MarkerType.ArrowClosed, width: 12, height: 12, color: EDGE_COLOR },
+          style: { stroke: EDGE_COLOR, strokeWidth: 1.5 },
           animated: false,
         })
       }
@@ -90,15 +88,18 @@ interface PipelineCanvasProps {
 
 export function PipelineCanvas({ pipeline, onSelectNode, stepStatuses }: PipelineCanvasProps) {
   const initial = useMemo(() => pipelineToFlow(pipeline), [pipeline])
-  const [nodes, setNodes, onNodesChange] = useNodesState(initial.nodes)
+  const [nodes, , onNodesChange] = useNodesState(initial.nodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initial.edges)
 
   const onConnect: OnConnect = useCallback(
-    (params) => setEdges((eds) => addEdge({ ...params, markerEnd: { type: MarkerType.ArrowClosed, width: 12, height: 12, color: '#52525b' }, style: { stroke: '#52525b', strokeWidth: 1.5 } }, eds)),
+    (params) => setEdges((eds) => addEdge({
+      ...params,
+      markerEnd: { type: MarkerType.ArrowClosed, width: 12, height: 12, color: EDGE_COLOR },
+      style: { stroke: EDGE_COLOR, strokeWidth: 1.5 },
+    }, eds)),
     [setEdges],
   )
 
-  // 스텝 상태 반영
   const nodesWithStatus = useMemo(() => {
     if (!stepStatuses) return nodes
     return nodes.map((n) => ({
@@ -120,10 +121,10 @@ export function PipelineCanvas({ pipeline, onSelectNode, stepStatuses }: Pipelin
         nodeTypes={nodeTypes}
         fitView
         proOptions={{ hideAttribution: true }}
-        className="bg-zinc-950"
+        className="bg-background"
       >
-        <Background color="#27272a" gap={20} />
-        <Controls className="!bg-zinc-900 !border-zinc-800 !rounded-md [&>button]:!bg-zinc-900 [&>button]:!border-zinc-800 [&>button]:!text-zinc-400" />
+        <Background color="oklch(0.25 0 0)" gap={20} />
+        <Controls className="!bg-card !border-border !rounded-md [&>button]:!bg-card [&>button]:!border-border [&>button]:!text-muted-foreground" />
       </ReactFlow>
     </div>
   )
