@@ -23,6 +23,8 @@ export const api = {
     logs: (id: string) => request<any[]>(`/agents/${id}/logs`),
     spawn: (body: any) => request<{ agentId: string }>('/agents/spawn', { method: 'POST', body: JSON.stringify(body) }),
     kill: (id: string) => request<void>(`/agents/${id}`, { method: 'DELETE' }),
+    stats: () => request<{ stats: any[]; tiers: any[] }>('/agents/stats'),
+    resume: (id: string, prompt: string) => request<{ agentId: string }>(`/agents/${id}/resume`, { method: 'POST', body: JSON.stringify({ prompt }) }),
   },
   tasks: {
     list: (projectId?: string) => request<any[]>(`/tasks${projectId ? `?project_id=${projectId}` : ''}`),
@@ -50,8 +52,10 @@ export const api = {
     run: (name: string, body: { prompt: string; cwd: string; project_id?: string }) => request<{ runId: string }>(`/pipelines/${name}/run`, { method: 'POST', body: JSON.stringify(body) }),
     cancelRun: (id: string) => request<any>(`/pipelines/runs/${id}/cancel`, { method: 'POST' }),
     approveStep: (runId: string, stepId: string) => request<any>(`/pipelines/runs/${runId}/approve/${stepId}`, { method: 'POST' }),
+    rejectStep: (runId: string, stepId: string) => request<any>(`/pipelines/runs/${runId}/reject/${stepId}`, { method: 'POST' }),
     getRun: (id: string) => request<any>(`/pipelines/runs/${id}`),
     getRunSteps: (id: string) => request<any[]>(`/pipelines/runs/${id}/steps`),
+    getRunFiles: (id: string) => request<any[]>(`/pipelines/runs/${id}/files`),
   },
   chat: {
     send: (body: any) => request<{ taskId: string; messageId: string; agentId: string | null }>('/chat', { method: 'POST', body: JSON.stringify(body) }),
