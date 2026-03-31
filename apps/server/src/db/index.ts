@@ -20,9 +20,21 @@ export function getDb() {
   return db
 }
 
+function migrate(d: Database.Database) {
+  const cols = d.prepare("PRAGMA table_info(step_runs)").all() as Array<{ name: string }>
+  const colNames = new Set(cols.map((c) => c.name))
+  if (!colNames.has('verify_attempt')) {
+    d.prepare('ALTER TABLE step_runs ADD COLUMN verify_attempt INTEGER').run()
+  }
+  if (!colNames.has('parent_step_run_id')) {
+    d.prepare('ALTER TABLE step_runs ADD COLUMN parent_step_run_id TEXT').run()
+  }
+}
+
 export function initDb() {
   const d = getDb()
   d.exec(schema)
+  migrate(d)
 
   const count = d.prepare('SELECT count(*) as c FROM agent_types').get() as { c: number }
   if (count.c === 0) {

@@ -89,7 +89,9 @@ CREATE TABLE IF NOT EXISTS step_runs (
   artifacts   TEXT DEFAULT '[]',
   structured  TEXT,
   started_at  TEXT,
-  ended_at    TEXT
+  ended_at    TEXT,
+  verify_attempt INTEGER,
+  parent_step_run_id TEXT REFERENCES step_runs(id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
@@ -99,4 +101,22 @@ CREATE INDEX IF NOT EXISTS idx_agents_status ON agents(status);
 CREATE INDEX IF NOT EXISTS idx_messages_task ON messages(task_id);
 CREATE INDEX IF NOT EXISTS idx_agent_logs_agent ON agent_logs(agent_id);
 CREATE INDEX IF NOT EXISTS idx_step_runs_run ON step_runs(run_id);
+
+CREATE TABLE IF NOT EXISTS file_changes (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  run_id      TEXT NOT NULL REFERENCES pipeline_runs(id),
+  step_id     TEXT NOT NULL,
+  file_path   TEXT NOT NULL,
+  change_type TEXT NOT NULL DEFAULT 'modified',
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_file_changes_run ON file_changes(run_id);
+
+CREATE TABLE IF NOT EXISTS run_learnings (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  run_id      TEXT NOT NULL REFERENCES pipeline_runs(id),
+  category    TEXT NOT NULL,
+  content     TEXT NOT NULL,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `
