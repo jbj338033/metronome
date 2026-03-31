@@ -34,3 +34,16 @@ export function StatusIcon({ status, className }: { status: string; className?: 
 export function statusColor(status: string) {
   return (config[status] ?? fallback).color
 }
+
+export const pipelineStatusMap: Record<string, string> = {
+  running: 'in_progress',
+  completed: 'completed',
+  failed: 'failed',
+  cancelled: 'cancelled',
+  interrupted: 'interrupted',
+  replanning: 'pending',
+  awaiting_approval: 'awaiting_approval',
+  pending: 'pending',
+  skipped: 'cancelled',
+  retrying: 'pending',
+}
