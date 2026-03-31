@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { getDb } from '../db'
 import { agentManager } from '../agents/manager'
 import { checkAllAvailability } from '../agents/registry'
+import { estimateCost, getModelTiers } from '../agents/model-router'
 
 export const agentRoutes = new Hono()
 
@@ -63,6 +64,36 @@ agentRoutes.post('/spawn', async (c) => {
       systemPrompt: body.system_prompt,
     })
     return c.json({ agentId }, 201)
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, 400)
+  }
+})
+
+agentRoutes.get('/stats', (c) => {
+  const db = getDb()
+  const rows = db.prepare(`
+    SELECT model, COUNT(*) as count,
+      SUM(tokens_in) as total_in, SUM(tokens_out) as total_out
+    FROM agents WHERE status IN ('completed', 'failed')
+    GROUP BY model
+  `).all() as Array<{ model: string; count: number; total_in: number; total_out: number }>
+
+  const stats = rows.map((r) => ({
+    model: r.model || 'unknown',
+    count: r.count,
+    tokens_in: r.total_in,
+    tokens_out: r.total_out,
+    estimated_cost: estimateCost(r.model || '', r.total_in, r.total_out),
+  }))
+
+  return c.json({ stats, tiers: getModelTiers() })
+})
+
+agentRoutes.post('/:id/resume', async (c) => {
+  const { prompt } = await c.req.json<{ prompt: string }>()
+  try {
+    const newAgentId = agentManager.resume(c.req.param('id'), prompt)
+    return c.json({ agentId: newAgentId }, 201)
   } catch (err) {
     return c.json({ error: (err as Error).message }, 400)
   }
