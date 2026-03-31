@@ -63,7 +63,20 @@ pipelineRoutes.get('/runs/:id', (c) => {
   return c.json(run)
 })
 
+pipelineRoutes.get('/runs/:id/files', (c) => {
+  const files = getDb().prepare(
+    'SELECT * FROM file_changes WHERE run_id = ? ORDER BY created_at',
+  ).all(c.req.param('id'))
+  return c.json(files)
+})
+
 pipelineRoutes.get('/runs/:id/steps', (c) => {
-  const steps = getDb().prepare('SELECT * FROM step_runs WHERE run_id = ? ORDER BY started_at ASC').all(c.req.param('id'))
+  const steps = getDb().prepare(`
+    SELECT sr.*, a.model as agent_model
+    FROM step_runs sr
+    LEFT JOIN agents a ON sr.agent_id = a.id
+    WHERE sr.run_id = ?
+    ORDER BY sr.started_at ASC
+  `).all(c.req.param('id'))
   return c.json(steps)
 })
