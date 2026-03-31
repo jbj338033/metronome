@@ -5,9 +5,9 @@ import { StatusIcon } from '@/shared/lib/status'
 import { Badge } from '@/shared/ui/badge'
 
 const statusStyle: Record<string, string> = {
-  pending: 'border-border bg-card',
+  pending: 'border-border bg-surface-2',
   in_progress: 'border-emerald-800 bg-emerald-950/30',
-  completed: 'border-border bg-card/50',
+  completed: 'border-border bg-surface-2/50',
   failed: 'border-red-900 bg-red-950/20',
 }
 
