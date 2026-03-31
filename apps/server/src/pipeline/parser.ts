@@ -4,12 +4,11 @@ const ajv = new Ajv({ allErrors: true })
 
 export function extractStructured(output: string): unknown | null {
   const match = output.match(/```json\s*([\s\S]*?)```/)
-  if (!match) return null
-  try {
-    return JSON.parse(match[1].trim())
-  } catch {
-    return null
+  if (match) {
+    try { return JSON.parse(match[1].trim()) } catch {}
   }
+  try { return JSON.parse(output.trim()) } catch {}
+  return null
 }
 
 export function extractAndValidate(
