@@ -16,7 +16,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   async init() {
     if (get().initialized) return
 
-    // 프로젝트 변경 시 태스크 리페치 연결
     useProjectStore.setState({
       onProjectChange: () => useTaskStore.getState().fetchTasks(),
     })

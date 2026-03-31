@@ -1,11 +1,11 @@
 import { create } from 'zustand'
-import type { Agent, ServerMessage } from '@metronome/types'
+import type { Agent, RunningAgent, ServerMessage, AgentOutputEvent, AgentStatusEvent } from '@metronome/types'
 import { api } from '@/shared/api/client'
 import { wsClient } from '@/shared/api/ws'
 
 interface AgentState {
   agents: Agent[]
-  runningAgents: Array<{ agentId: string; adapterId: string; taskId: string | null; pid: number }>
+  runningAgents: RunningAgent[]
   agentOutput: Map<string, string[]>
 
   fetchAgents: () => Promise<void>
@@ -34,9 +34,9 @@ export const useAgentStore = create<AgentState>((set, get) => ({
 
   handleWsMessage(msg: ServerMessage) {
     const { topic, event, data } = msg
-    const d = data as any
 
     if (event === 'output' && topic.startsWith('agent:')) {
+      const d = data as AgentOutputEvent
       set((state) => {
         const map = new Map(state.agentOutput)
         const agentId = topic.replace('agent:', '')
@@ -47,6 +47,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     }
 
     if (event === 'status' && topic.startsWith('agent:')) {
+      const d = data as AgentStatusEvent
       if (d.status === 'running') {
         set((state) => ({
           runningAgents: [...state.runningAgents, { agentId: d.agentId, adapterId: '', taskId: d.taskId, pid: d.pid }],
