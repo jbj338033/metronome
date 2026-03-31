@@ -19,10 +19,25 @@ export interface StepContext {
   structured: unknown
 }
 
+interface StructuredWithComplexity {
+  complexity: string
+  [key: string]: unknown
+}
+
+function hasComplexity(v: unknown): v is StructuredWithComplexity {
+  return typeof v === 'object' && v !== null && 'complexity' in v
+}
+
+interface StructuredWithFiles {
+  files_changed: string[]
+  [key: string]: unknown
+}
+
+function hasFilesChanged(v: unknown): v is StructuredWithFiles {
+  return typeof v === 'object' && v !== null && 'files_changed' in v && Array.isArray((v as Record<string, unknown>).files_changed)
+}
+
 export class StepRunner {
-  /**
-   * 스텝 하나를 실행하고 완료될 때까지 대기
-   */
   async execute(
     step: PipelineStep,
     runId: string,
@@ -34,15 +49,12 @@ export class StepRunner {
     const blueprint = loadBlueprint(step.blueprint)
     if (!blueprint) throw new Error(`blueprint not found: ${step.blueprint}`)
 
-    // 컨텍스트 구성 (토큰 예산: ~4000 토큰 ≈ 16KB)
     const contextStr = this.buildContext(step, previousContext, 16_000)
 
-    // 프롬프트 템플릿 렌더링
     const finalPrompt = blueprint.prompt_template
       ? renderTemplate(blueprint.prompt_template, { prompt, context: contextStr || undefined })
       : prompt
 
-    // step_run 레코드 생성
     const stepRunId = uuid()
     const db = getDb()
     db.prepare(`
@@ -56,25 +68,22 @@ export class StepRunner {
       fanIndex,
     })
 
-    // 에이전트/모델 결정: 스텝 오버라이드 > 모델 라우팅 > 블루프린트 기본값
     const agentType = step.agent || blueprint.agent
     let model = step.model || blueprint.model
     if (!step.model && blueprint.model_routing !== 'fixed') {
       for (const prev of previousContext) {
-        if (prev.structured && typeof prev.structured === 'object' && 'complexity' in (prev.structured as any)) {
-          model = selectModel((prev.structured as any).complexity, blueprint.model)
+        if (hasComplexity(prev.structured)) {
+          model = selectModel(prev.structured.complexity, blueprint.model)
           break
         }
       }
     }
 
-    // 프롬프트: 스텝 레벨 prompt가 있으면 우선 사용
     const stepPrompt = step.prompt ? renderTemplate(
       blueprint.prompt_template || '{{prompt}}',
       { prompt: step.prompt, context: contextStr || undefined },
     ) : finalPrompt
 
-    // 에이전트 spawn
     const agentId = agentManager.spawn({
       typeId: agentType,
       prompt: stepPrompt,
@@ -87,21 +96,16 @@ export class StepRunner {
 
     db.prepare('UPDATE step_runs SET agent_id = ? WHERE id = ?').run(agentId, stepRunId)
 
-    // 에이전트 완료 대기
     const result = await this.waitForAgent(agentId)
 
-    // 결과 파싱 + 스키마 검증
     const { data: structured, valid, errors: schemaErrors } = extractAndValidate(
       result.output, blueprint.output_schema,
     )
     if (blueprint.output_schema && !valid) {
       console.warn(`schema validation failed for step "${step.id}":`, schemaErrors)
     }
-    const artifacts = structured && typeof structured === 'object' && 'files_changed' in (structured as any)
-      ? (structured as any).files_changed as string[]
-      : []
+    const artifacts = hasFilesChanged(structured) ? structured.files_changed : []
 
-    // file_changes 기록
     if (artifacts.length > 0) {
       const insertChange = db.prepare(
         'INSERT INTO file_changes (run_id, step_id, file_path, change_type) VALUES (?, ?, ?, ?)',
@@ -111,7 +115,6 @@ export class StepRunner {
       }
     }
 
-    // step_run 업데이트
     const status = result.success ? 'completed' : 'failed'
     db.prepare(`
       UPDATE step_runs SET status = ?, output = ?, artifacts = ?, structured = ?, ended_at = datetime('now')
@@ -189,7 +192,7 @@ export class StepRunner {
         for (const field of ctx.include) {
           let content = ''
           if (field === 'artifacts') {
-            content = `변경된 파일: ${prev.artifacts.join(', ')}\n`
+            content = `changed files: ${prev.artifacts.join(', ')}\n`
           } else if (field === 'output') {
             content = prev.output + '\n'
           } else if (field === 'structured') {
