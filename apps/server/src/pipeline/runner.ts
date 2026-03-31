@@ -84,19 +84,20 @@ export class StepRunner {
       { prompt: step.prompt, context: contextStr || undefined },
     ) : finalPrompt
 
+    const agentTimeout = (step.timeout || blueprint.timeout || 300) * 1000
     const agentId = agentManager.spawn({
       typeId: agentType,
       prompt: stepPrompt,
       cwd,
       model,
       blueprint: blueprint.name,
-      timeout: (step.timeout || blueprint.timeout || 300) * 1000,
+      timeout: agentTimeout,
       systemPrompt: blueprint.system,
     })
 
     db.prepare('UPDATE step_runs SET agent_id = ? WHERE id = ?').run(agentId, stepRunId)
 
-    const result = await this.waitForAgent(agentId)
+    const result = await this.waitForAgent(agentId, agentTimeout + 30_000)
 
     const { data: structured, valid, errors: schemaErrors } = extractAndValidate(
       result.output, blueprint.output_schema,
@@ -218,13 +219,20 @@ export class StepRunner {
     return { success: agent?.status === 'completed', output: output || '' }
   }
 
-  private waitForAgent(agentId: string): Promise<{ success: boolean; output: string }> {
+  private waitForAgent(agentId: string, timeoutMs: number): Promise<{ success: boolean; output: string }> {
     return new Promise((resolve) => {
       if (!agentManager.isRunning(agentId)) {
         return resolve(this.getAgentResult(agentId))
       }
 
+      const timer = setTimeout(() => {
+        cleanup()
+        agentManager.kill(agentId, 'step_timeout')
+        resolve({ success: false, output: 'agent timed out' })
+      }, timeoutMs)
+
       const cleanup = () => {
+        clearTimeout(timer)
         events.removeListener('agent:completed', onDone)
         events.removeListener('agent:failed', onDone)
       }
