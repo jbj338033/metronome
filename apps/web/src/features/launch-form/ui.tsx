@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router'
 import { Rocket, FileText, MessageSquare, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { api } from '@/shared/api/client'
 import { wsClient } from '@/shared/api/ws'
 import { Button } from '@/shared/ui/button'
@@ -37,8 +38,8 @@ export function LaunchForm() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    api.pipelines.list().then(setTemplates)
-    api.agents.types().then(setAgentTypes)
+    api.pipelines.list().then(setTemplates).catch(() => toast.error('failed to load pipelines'))
+    api.agents.types().then(setAgentTypes).catch(() => toast.error('failed to load agent types'))
   }, [])
 
   useEffect(() => {
@@ -50,14 +51,12 @@ export function LaunchForm() {
     setLaunching(true)
 
     try {
-      let runId: string
-
       if (mode === 'auto') {
         const res = await api.pipelines.runDynamic({ prompt, cwd })
-        runId = res.runId
+        navigate(`/live/${res.runId}`)
       } else if (mode === 'template' && template) {
         const res = await api.pipelines.run(template, { prompt, cwd })
-        runId = res.runId
+        navigate(`/live/${res.runId}`)
       } else {
         const res = await api.chat.send({
           content: prompt,
@@ -69,12 +68,9 @@ export function LaunchForm() {
           wsClient.subscribe([`agent:${res.agentId}`])
         }
         navigate('/live')
-        return
       }
-
-      navigate(`/live/${runId}`)
     } catch (err) {
-      console.error(err)
+      toast.error(err instanceof Error ? err.message : 'launch failed')
     } finally {
       setLaunching(false)
     }
