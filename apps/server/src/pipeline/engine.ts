@@ -1,6 +1,6 @@
 import { v4 as uuid } from 'uuid'
 import { getDb } from '../db'
-import { loadPipeline } from './loader'
+import { loadPipeline, loadBlueprint } from './loader'
 import { DagScheduler } from './scheduler'
 import { StepRunner, type StepContext } from './runner'
 import { evaluateCondition } from './condition'
@@ -40,6 +40,52 @@ class PipelineEngineImpl {
     // 백그라운드 실행
     this.execute(runId, pipeline, input).catch((err) => {
       console.error(`pipeline ${runId} fatal error:`, err)
+      this.markRunStatus(runId, 'failed')
+    })
+
+    return runId
+  }
+
+  async startFromPrompt(input: { prompt: string; cwd: string; projectId?: string }): Promise<string> {
+    const runId = uuid()
+    const db = getDb()
+    db.prepare(`
+      INSERT INTO pipeline_runs (id, pipeline_id, project_id, status, input)
+      VALUES (?, ?, ?, 'running', ?)
+    `).run(runId, '__orchestrated', input.projectId || null, JSON.stringify(input))
+
+    this.activeRuns.set(runId, { cancelled: false })
+    broadcast(`pipeline:${runId}`, 'status', { runId, status: 'running' })
+
+    // orchestrator 에이전트로 파이프라인 구조 생성
+    const orchestratorStep: PipelineStep = { id: '__orchestrate', blueprint: 'orchestrator' }
+    const orchestratorResult = await this.runner.execute(
+      orchestratorStep, runId, input.prompt, input.cwd, [],
+    )
+
+    const plan = orchestratorResult.structured as {
+      spec?: { goal?: string }
+      steps?: PipelineStep[]
+      final_verify?: string
+      max_replan?: number
+    } | null
+
+    if (!plan?.steps?.length) {
+      this.markRunStatus(runId, 'failed')
+      throw new Error('orchestrator produced no steps')
+    }
+
+    // 동적 파이프라인 실행
+    const pipeline = {
+      name: '__orchestrated',
+      max_replan: plan.max_replan ?? 2,
+      timeout: 3600,
+      steps: plan.steps,
+      final_verify: plan.final_verify,
+    }
+
+    this.execute(runId, pipeline, input).catch((err) => {
+      console.error(`orchestrated pipeline ${runId} fatal error:`, err)
       this.markRunStatus(runId, 'failed')
     })
 
@@ -115,7 +161,15 @@ class PipelineEngineImpl {
           const allDone = [...states.values()].every(
             (s) => s.status === 'completed' || s.status === 'skipped' || s.status === 'failed' || s.status === 'cancelled',
           )
-          if (allDone) break
+          if (allDone) {
+            // 실패한 스텝이 있으면 replan 시도
+            const hasFailure = [...states.values()].some((s) => s.status === 'failed')
+            if (hasFailure && pipeline.max_replan) {
+              const replanned = await this.replan(runId, input, scheduler, states, results, pipeline.max_replan)
+              if (replanned) continue
+            }
+            break
+          }
 
           // 아직 running인 스텝이 있으면 이벤트 대기
           await new Promise<void>((resolve) => {
@@ -229,6 +283,21 @@ class PipelineEngineImpl {
       try {
         const result = await this.runner.execute(step, runId, input.prompt, input.cwd, previousContext)
         results.set(step.id, result)
+
+        // ground truth 검증
+        if (step.verify_command) {
+          const verify = await this.runner.verifyWithCommand(step.verify_command, input.cwd)
+          broadcast(`pipeline:${runId}`, 'verify', {
+            stepId: step.id, type: 'command', passed: verify.passed, output: verify.output.slice(0, 500),
+          })
+          if (!verify.passed) {
+            if (attempt < maxRetries) continue
+            states.set(step.id, { stepId: step.id, status: 'failed' })
+            events.emit('step:failed', runId, step.id)
+            return
+          }
+        }
+
         states.set(step.id, { stepId: step.id, status: 'completed', structured: result.structured })
         events.emit('step:completed', runId, step.id)
         return
@@ -437,6 +506,79 @@ class PipelineEngineImpl {
 
       events.on('approval:response', handler)
     })
+  }
+
+  private async replan(
+    runId: string,
+    input: { prompt: string; cwd: string },
+    scheduler: DagScheduler,
+    states: Map<string, StepState>,
+    results: Map<string, StepContext>,
+    maxReplan: number,
+  ): Promise<boolean> {
+    const db = getDb()
+    const run = db.prepare('SELECT replan_count FROM pipeline_runs WHERE id = ?').get(runId) as { replan_count: number } | undefined
+    if (!run || run.replan_count >= maxReplan) return false
+
+    this.markRunStatus(runId, 'replanning')
+
+    const completedSummary = [...results.entries()]
+      .map(([id, ctx]) => `${id}: ${ctx.structured ? JSON.stringify(ctx.structured) : 'completed'}`)
+      .join('\n')
+
+    const failedSummary = [...states.entries()]
+      .filter(([, s]) => s.status === 'failed')
+      .map(([id]) => id)
+      .join(', ')
+
+    const replanPrompt = `이전 계획의 일부가 실패했어. 재계획해줘.\n\n[완료된 스텝]\n${completedSummary}\n\n[실패한 스텝]\n${failedSummary}\n\n[원래 요청]\n${input.prompt}`
+
+    const orchestratorStep: PipelineStep = { id: '__replan', blueprint: 'orchestrator' }
+    try {
+      const replanResult = await this.runner.execute(
+        orchestratorStep, runId, replanPrompt, input.cwd, [...results.values()],
+      )
+
+      const plan = replanResult.structured as { steps?: PipelineStep[] } | null
+      if (!plan?.steps?.length) return false
+
+      // 완료된 스텝 유지, pending 스텝을 새 것으로 교체
+      const completedIds = new Set(
+        [...states.entries()].filter(([, s]) => s.status === 'completed').map(([id]) => id),
+      )
+      const newSteps = [
+        ...plan.steps.filter((s) => !completedIds.has(s.id)),
+      ]
+
+      // 새 스텝을 pending으로 등록
+      for (const step of newSteps) {
+        if (!states.has(step.id)) {
+          states.set(step.id, { stepId: step.id, status: 'pending' })
+        }
+      }
+
+      // DAG 재구성 (완료된 스텝 + 새 스텝)
+      const allSteps = [
+        ...plan.steps,
+      ]
+      scheduler.rebuild(allSteps)
+
+      db.prepare('UPDATE pipeline_runs SET replan_count = replan_count + 1 WHERE id = ?').run(runId)
+      this.markRunStatus(runId, 'running')
+
+      broadcast(`pipeline:${runId}`, 'replan', {
+        runId, replanCount: (run.replan_count || 0) + 1, newSteps: newSteps.map((s) => s.id),
+      })
+
+      return true
+    } catch {
+      this.markRunStatus(runId, 'running')
+      return false
+    }
+  }
+
+  requestReplan(runId: string) {
+    events.emit('step:failed', runId, '__manual_replan')
   }
 
   private markRunStatus(runId: string, status: string) {
