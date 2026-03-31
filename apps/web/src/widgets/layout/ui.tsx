@@ -115,18 +115,18 @@ export function RootLayout() {
                 Projects
               </span>
               <Dialog open={showNewProject} onOpenChange={setShowNewProject}>
-                <DialogTrigger asChild>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DialogTrigger asChild>
                       <button className="rounded p-0.5 text-sidebar-foreground/40 hover:text-sidebar-foreground transition-colors">
                         <Plus size={14} strokeWidth={1.5} />
                       </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="right" className="text-xs">
-                      new project
-                    </TooltipContent>
-                  </Tooltip>
-                </DialogTrigger>
+                    </DialogTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="text-xs">
+                    new project
+                  </TooltipContent>
+                </Tooltip>
                 <DialogContent className="max-w-sm">
                   <DialogHeader>
                     <DialogTitle className="text-sm">new project</DialogTitle>
