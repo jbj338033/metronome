@@ -1,0 +1,28 @@
+name: spec-driven
+timeout: 2400
+
+steps:
+  - id: spec
+    blueprint: spec-generator
+    timeout: 90
+
+  - id: plan
+    blueprint: planner
+    depends_on: [spec]
+    context:
+      - step: spec
+        include: [structured]
+    timeout: 120
+
+  - id: implement
+    blueprint: coder
+    depends_on: [plan]
+    fan_out: "plan.subtasks"
+    max_concurrency: 3
+    timeout: 600
+    retry: { max: 1, backoff: exponential }
+    verify:
+      blueprint: verifier
+      max_fix_attempts: 2
+      pass_condition: "implement__verify.passed"
+      include_in_fix: [issues, artifacts]
