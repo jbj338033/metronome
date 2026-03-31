@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 import { api } from '@/shared/api/client'
 import { useAgentStore } from '@/entities/agent/model/store'
 import { cn } from '@/shared/lib/cn'
@@ -6,6 +7,17 @@ import { StatusIcon } from '@/shared/lib/status'
 import { Button } from '@/shared/ui/button'
 import { ModelBadge } from '@/shared/ui/model-badge'
 import { SectionHeader } from '@/shared/ui/section-header'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/shared/ui/alert-dialog'
 import type { Agent } from '@metronome/types'
 
 export function ManageAgents() {
@@ -15,9 +27,18 @@ export function ManageAgents() {
   const running = useAgentStore((s) => s.runningAgents)
 
   useEffect(() => {
-    api.agents.types().then(setTypes)
-    api.agents.availability().then(setAvailability)
+    api.agents.types().then(setTypes).catch(() => toast.error('failed to load agent types'))
+    api.agents.availability().then(setAvailability).catch(() => toast.error('failed to check availability'))
   }, [])
+
+  async function handleKill(agentId: string) {
+    try {
+      await api.agents.kill(agentId)
+      toast.success('agent killed')
+    } catch {
+      toast.error('failed to kill agent')
+    }
+  }
 
   return (
     <div className="flex-1 overflow-auto">
@@ -42,7 +63,21 @@ export function ManageAgents() {
                 <StatusIcon status="in_progress" className="size-3.5" />
                 <span className="font-mono text-xs text-foreground/80">{r.agentId.slice(0, 8)}</span>
                 <span className="ml-auto font-mono text-xs text-muted-foreground">pid {r.pid}</span>
-                <Button onClick={() => api.agents.kill(r.agentId)} variant="destructive" size="xs">kill</Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="xs">kill</Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>kill agent?</AlertDialogTitle>
+                      <AlertDialogDescription>the agent process will be terminated immediately</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => handleKill(r.agentId)}>kill</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             ))}
           </div>
