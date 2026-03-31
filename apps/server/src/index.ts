@@ -9,6 +9,7 @@ import { chatRoutes } from './routes/chat'
 import { pipelineRoutes } from './routes/pipelines'
 import { blueprintRoutes } from './routes/blueprints'
 import { projectRoutes } from './routes/projects'
+import { fsRoutes } from './routes/fs'
 import { handleWebSocket } from './ws'
 import { initDb } from './db'
 import { agentManager } from './agents/manager'
@@ -25,6 +26,7 @@ app.route('/api/chat', chatRoutes)
 app.route('/api/pipelines', pipelineRoutes)
 app.route('/api/blueprints', blueprintRoutes)
 app.route('/api/projects', projectRoutes)
+app.route('/api/fs', fsRoutes)
 
 app.get('/ws', upgradeWebSocket(handleWebSocket))
 

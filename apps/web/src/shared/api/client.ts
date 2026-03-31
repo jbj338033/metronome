@@ -13,7 +13,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json()
 }
 
+interface DirEntry { name: string; type: 'directory' }
+interface DirListing { path: string; parent: string | null; entries: DirEntry[] }
+
 export const api = {
+  fs: {
+    list: (dirPath: string) => request<DirListing>(`/fs/list?path=${encodeURIComponent(dirPath)}`),
+  },
   agents: {
     list: () => request<any[]>('/agents'),
     types: () => request<any[]>('/agents/types'),
