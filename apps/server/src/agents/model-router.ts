@@ -2,13 +2,14 @@ interface ModelTier {
   id: string
   model: string
   complexity: 'low' | 'medium' | 'high'
-  costPerMToken: number
+  inputCost: number
+  outputCost: number
 }
 
 const tiers: ModelTier[] = [
-  { id: 'fast', model: 'haiku', complexity: 'low', costPerMToken: 0.25 },
-  { id: 'balanced', model: 'sonnet', complexity: 'medium', costPerMToken: 3 },
-  { id: 'powerful', model: 'opus', complexity: 'high', costPerMToken: 15 },
+  { id: 'fast', model: 'haiku', complexity: 'low', inputCost: 0.25, outputCost: 1.25 },
+  { id: 'balanced', model: 'sonnet', complexity: 'medium', inputCost: 3, outputCost: 15 },
+  { id: 'powerful', model: 'opus', complexity: 'high', inputCost: 15, outputCost: 75 },
 ]
 
 const complexityRank: Record<string, number> = { low: 0, medium: 1, high: 2 }
@@ -30,24 +31,16 @@ export function selectModel(
 export function estimateCost(model: string, tokensIn: number, tokensOut: number): number {
   const tier = tiers.find((t) => t.model === model)
   if (!tier) return 0
-  return ((tokensIn + tokensOut) / 1_000_000) * tier.costPerMToken
+  return (tokensIn / 1_000_000) * tier.inputCost + (tokensOut / 1_000_000) * tier.outputCost
 }
 
 export function getModelTiers() {
   return tiers
 }
 
-export interface TaskProfile {
-  type: 'research' | 'implement' | 'review' | 'quickgen' | 'plan'
-  complexity: 'low' | 'medium' | 'high'
-}
-
-export function selectAgentAndModel(profile: TaskProfile): { agent: string; model: string } {
+export function selectAgentAndModel(profile: { type: string; complexity: string }): { agent: string; model: string } {
   if (profile.type === 'research') {
-    return { agent: 'gemini', model: '' }
-  }
-  if (profile.type === 'quickgen' && profile.complexity === 'low') {
-    return { agent: 'codex', model: '' }
+    return { agent: 'claude-code', model: 'sonnet' }
   }
   if (profile.type === 'plan' && profile.complexity === 'high') {
     return { agent: 'claude-code', model: 'opus' }
