@@ -27,14 +27,14 @@ export function BlueprintEditor({ blueprint, onSave }: BlueprintEditorProps) {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4 max-w-xl">
       <div>
-        <label className="mb-1 block text-[10px] uppercase tracking-wider text-muted-foreground/60">name</label>
+        <label className="mb-1 block text-xs text-muted-foreground">name</label>
         <Input value={form.name} disabled className="h-8 text-xs" />
       </div>
-      <div className="flex gap-2">
+      <div className="flex gap-3">
         <div className="flex-1">
-          <label className="mb-1 block text-[10px] uppercase tracking-wider text-muted-foreground/60">agent</label>
+          <label className="mb-1 block text-xs text-muted-foreground">agent</label>
           <Input
             value={form.agent}
             onChange={(e) => update('agent', e.target.value)}
@@ -42,7 +42,7 @@ export function BlueprintEditor({ blueprint, onSave }: BlueprintEditorProps) {
           />
         </div>
         <div className="flex-1">
-          <label className="mb-1 block text-[10px] uppercase tracking-wider text-muted-foreground/60">model</label>
+          <label className="mb-1 block text-xs text-muted-foreground">model</label>
           <Input
             value={form.model}
             onChange={(e) => update('model', e.target.value)}
@@ -50,9 +50,9 @@ export function BlueprintEditor({ blueprint, onSave }: BlueprintEditorProps) {
           />
         </div>
       </div>
-      <div className="flex gap-2">
+      <div className="flex gap-3">
         <div className="flex-1">
-          <label className="mb-1 block text-[10px] uppercase tracking-wider text-muted-foreground/60">timeout (s)</label>
+          <label className="mb-1 block text-xs text-muted-foreground">timeout (s)</label>
           <Input
             type="number"
             value={form.timeout}
@@ -61,7 +61,7 @@ export function BlueprintEditor({ blueprint, onSave }: BlueprintEditorProps) {
           />
         </div>
         <div className="flex-1">
-          <label className="mb-1 block text-[10px] uppercase tracking-wider text-muted-foreground/60">max turns</label>
+          <label className="mb-1 block text-xs text-muted-foreground">max turns</label>
           <Input
             type="number"
             value={form.max_turns || ''}
@@ -71,7 +71,7 @@ export function BlueprintEditor({ blueprint, onSave }: BlueprintEditorProps) {
         </div>
       </div>
       <div>
-        <label className="mb-1 block text-[10px] uppercase tracking-wider text-muted-foreground/60">system prompt</label>
+        <label className="mb-1 block text-xs text-muted-foreground">system prompt</label>
         <Textarea
           value={form.system}
           onChange={(e) => update('system', e.target.value)}
@@ -80,7 +80,7 @@ export function BlueprintEditor({ blueprint, onSave }: BlueprintEditorProps) {
         />
       </div>
       <div>
-        <label className="mb-1 block text-[10px] uppercase tracking-wider text-muted-foreground/60">prompt template</label>
+        <label className="mb-1 block text-xs text-muted-foreground">prompt template</label>
         <Textarea
           value={form.prompt_template || ''}
           onChange={(e) => update('prompt_template', e.target.value)}
@@ -88,8 +88,8 @@ export function BlueprintEditor({ blueprint, onSave }: BlueprintEditorProps) {
           className="resize-y font-mono text-xs"
         />
       </div>
-      <Button onClick={handleSave} disabled={saving} className="w-full">
-        {saving ? <><Loader2 className="animate-spin" /> saving...</> : 'save blueprint'}
+      <Button onClick={handleSave} disabled={saving} size="sm">
+        {saving ? <><Loader2 className="animate-spin" size={14} /> saving...</> : 'save'}
       </Button>
     </div>
   )

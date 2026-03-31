@@ -26,9 +26,9 @@ export function AgentTerminal({ agentId }: AgentTerminalProps) {
   }
 
   return (
-    <div className="h-full overflow-auto bg-background p-3 font-mono text-xs leading-5 text-muted-foreground">
+    <div className="h-full overflow-auto bg-surface-0 p-3 font-mono text-xs leading-6 text-muted-foreground">
       {output.map((line, i) => (
-        <div key={i} className="hover:bg-accent/30 transition-colors">
+        <div key={i} className="hover:bg-surface-1 transition-colors">
           {line}
         </div>
       ))}
