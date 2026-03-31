@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useAppStore } from '@/shared/stores/app'
 
 interface AgentTerminalProps {
@@ -6,7 +7,7 @@ interface AgentTerminalProps {
 }
 
 export function AgentTerminal({ agentId }: AgentTerminalProps) {
-  const output = useAppStore((s) => s.agentOutput.get(agentId) || [])
+  const output = useAppStore(useShallow((s) => s.agentOutput.get(agentId) || []))
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -15,16 +16,19 @@ export function AgentTerminal({ agentId }: AgentTerminalProps) {
 
   if (output.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center text-xs text-zinc-600">
-        waiting for output...
+      <div className="flex h-full items-center justify-center">
+        <span className="font-mono text-xs text-muted-foreground">
+          <span className="inline-block w-1.5 h-3.5 bg-muted-foreground/50 animate-pulse" />
+          {' '}waiting for output...
+        </span>
       </div>
     )
   }
 
   return (
-    <div className="h-full overflow-auto bg-zinc-950 p-3 font-[var(--font-mono)] text-xs leading-5 text-zinc-400">
+    <div className="h-full overflow-auto bg-background p-3 font-mono text-xs leading-5 text-muted-foreground">
       {output.map((line, i) => (
-        <div key={i} className="hover:bg-zinc-900/50">
+        <div key={i} className="hover:bg-accent/30 transition-colors">
           {line}
         </div>
       ))}
