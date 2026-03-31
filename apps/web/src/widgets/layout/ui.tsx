@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router'
 import {
-  LayoutDashboard,
-  MessageSquare,
-  ListTodo,
-  Workflow,
-  Bot,
+  Activity,
+  Rocket,
+  Clock,
+  Settings,
   Plus,
   FolderOpen,
 } from 'lucide-react'
@@ -13,7 +12,6 @@ import { cn } from '@/shared/lib/cn'
 import { StatusIcon } from '@/shared/lib/status'
 import { useAppStore } from '@/shared/stores/app'
 import { useAgentStore } from '@/entities/agent/model/store'
-import { useTaskStore } from '@/entities/task/model/store'
 import { useProjectStore } from '@/entities/project/model/store'
 import { api } from '@/shared/api/client'
 import { Button } from '@/shared/ui/button'
@@ -23,16 +21,14 @@ import { CommandPalette } from '@/widgets/command-palette/ui'
 import type { LucideIcon } from 'lucide-react'
 
 const nav: { to: string; label: string; key: string; icon: LucideIcon }[] = [
-  { to: '/', label: 'Dashboard', key: '1', icon: LayoutDashboard },
-  { to: '/chat', label: 'Chat', key: '2', icon: MessageSquare },
-  { to: '/tasks', label: 'Tasks', key: '3', icon: ListTodo },
-  { to: '/pipelines/editor', label: 'Pipelines', key: '4', icon: Workflow },
-  { to: '/agents', label: 'Agents', key: '5', icon: Bot },
+  { to: '/live', label: 'Live', key: '1', icon: Activity },
+  { to: '/launch', label: 'Launch', key: '2', icon: Rocket },
+  { to: '/history', label: 'History', key: '3', icon: Clock },
+  { to: '/config', label: 'Config', key: '4', icon: Settings },
 ]
 
 export function RootLayout() {
   const runningCount = useAgentStore((s) => s.runningAgents.length)
-  const pendingCount = useTaskStore((s) => s.tasks.filter((t) => t.status === 'pending').length)
   const projects = useProjectStore((s) => s.projects)
   const activeProjectId = useProjectStore((s) => s.activeProjectId)
   const setActiveProject = useProjectStore((s) => s.setActiveProject)
@@ -58,11 +54,7 @@ export function RootLayout() {
       }
       if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
         e.preventDefault()
-        navigate('/chat')
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key === 'e') {
-        e.preventDefault()
-        navigate('/chat')
+        navigate('/launch')
       }
     }
     window.addEventListener('keydown', handleKey)
@@ -83,7 +75,7 @@ export function RootLayout() {
       <div className="flex h-screen overflow-hidden">
         <CommandPalette />
 
-        <aside className="flex w-52 shrink-0 flex-col border-r border-sidebar-border bg-sidebar px-2 py-4">
+        <aside className="flex w-48 shrink-0 flex-col border-r border-sidebar-border bg-sidebar px-2 py-4">
           <div className="mb-6 px-2 text-sm font-semibold tracking-tight text-sidebar-foreground">
             Metronome
           </div>
@@ -93,7 +85,7 @@ export function RootLayout() {
               <NavLink
                 key={to}
                 to={to}
-                end={to === '/'}
+                end={to === '/live'}
                 className={({ isActive }) =>
                   cn(
                     'flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition-colors duration-150',
@@ -105,6 +97,11 @@ export function RootLayout() {
               >
                 <Icon size={16} strokeWidth={1.5} />
                 <span className="flex-1">{label}</span>
+                {label === 'Live' && runningCount > 0 && (
+                  <span className="flex items-center gap-1 text-[10px] text-emerald-400">
+                    <StatusIcon status="in_progress" className="size-2.5" /> {runningCount}
+                  </span>
+                )}
                 <kbd className="text-[10px] text-sidebar-foreground/30">{key}</kbd>
               </NavLink>
             ))}
@@ -184,21 +181,7 @@ export function RootLayout() {
             ))}
           </div>
 
-          <div className="mt-auto space-y-2 px-2">
-            {(runningCount > 0 || pendingCount > 0) && (
-              <div className="flex items-center gap-3 text-xs">
-                {runningCount > 0 && (
-                  <span className="flex items-center gap-1 text-emerald-400">
-                    <StatusIcon status="in_progress" className="size-3" /> {runningCount}
-                  </span>
-                )}
-                {pendingCount > 0 && (
-                  <span className="flex items-center gap-1 text-muted-foreground">
-                    <StatusIcon status="pending" className="size-3" /> {pendingCount}
-                  </span>
-                )}
-              </div>
-            )}
+          <div className="mt-auto px-2">
             <div className="text-xs text-sidebar-foreground/40">
               <kbd className="rounded border border-sidebar-border px-1 py-0.5 text-[10px] font-mono">⌘K</kbd>
               {' '}Command
