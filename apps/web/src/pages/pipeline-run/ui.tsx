@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router'
+import { FileCode } from 'lucide-react'
 import { api } from '@/shared/api/client'
 import { wsClient } from '@/shared/api/ws'
 import { PipelineTimeline } from '@/widgets/pipeline-timeline/ui'
@@ -11,20 +12,24 @@ import { Button } from '@/shared/ui/button'
 import { Skeleton } from '@/shared/ui/skeleton'
 import type { PipelineRun, StepRun } from '@metronome/types'
 
+type StepRunWithModel = StepRun & { agent_model?: string | null }
+
 const statusToInternal: Record<string, string> = {
   running: 'in_progress',
   completed: 'completed',
   failed: 'failed',
   cancelled: 'cancelled',
   interrupted: 'interrupted',
+  retrying: 'pending',
   awaiting_approval: 'awaiting_approval',
 }
 
 export function PipelineRunPage() {
   const { id } = useParams()
   const [run, setRun] = useState<PipelineRun | null>(null)
-  const [steps, setSteps] = useState<StepRun[]>([])
+  const [steps, setSteps] = useState<StepRunWithModel[]>([])
   const [activeStep, setActiveStep] = useState<string | null>(null)
+  const [fileChanges, setFileChanges] = useState<Array<{ file_path: string; step_id: string; change_type: string }>>([])
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -33,11 +38,14 @@ export function PipelineRunPage() {
     const fetchData = async () => {
       try {
         const [runData, stepsData] = await Promise.all([
-          fetch(`/api/pipelines/runs/${id}`).then((r) => r.json()),
-          fetch(`/api/pipelines/runs/${id}/steps`).then((r) => r.json()),
+          api.pipelines.getRun(id!),
+          api.pipelines.getRunSteps(id!),
         ])
         setRun(runData)
         setSteps(stepsData)
+        if (runData.status === 'completed' || runData.status === 'failed') {
+          api.pipelines.getRunFiles(id!).then(setFileChanges).catch(() => {})
+        }
       } catch {
         setError('failed to load pipeline run')
       }
@@ -85,11 +93,15 @@ export function PipelineRunPage() {
   const input = JSON.parse(run.input) as { prompt: string; cwd: string }
 
   async function handleCancel() {
-    await fetch(`/api/pipelines/runs/${id}/cancel`, { method: 'POST' })
+    await api.pipelines.cancelRun(id!)
   }
 
   async function handleApprove(stepId: string) {
-    await fetch(`/api/pipelines/runs/${id}/approve/${stepId}`, { method: 'POST' })
+    await api.pipelines.approveStep(id!, stepId)
+  }
+
+  async function handleReject(stepId: string) {
+    await api.pipelines.rejectStep(id!, stepId)
   }
 
   return (
@@ -121,19 +133,44 @@ export function PipelineRunPage() {
             activeStepId={activeStep}
           />
 
+          {fileChanges.length > 0 && (
+            <div className="border-t border-border p-4">
+              <div className="mb-2 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
+                <FileCode size={12} /> changed files ({fileChanges.length})
+              </div>
+              <div className="space-y-0.5">
+                {fileChanges.map((f, i) => (
+                  <div key={i} className="flex items-center gap-2 text-xs">
+                    <span className="font-mono text-foreground/70 truncate">{f.file_path}</span>
+                    <span className="ml-auto text-muted-foreground/50">{f.step_id}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {run.status === 'awaiting_approval' && steps.filter((s) => s.status === 'pending').length > 0 && (
             <div className="border-t border-border p-4">
               <div className="mb-2 text-xs text-yellow-400">승인 대기 중</div>
               {steps.filter((s) => s.status === 'pending').map((s) => (
-                <Button
-                  key={s.step_id}
-                  onClick={() => handleApprove(s.step_id)}
-                  variant="secondary"
-                  size="sm"
-                  className="mt-1 w-full text-yellow-300"
-                >
-                  approve: {s.step_id}
-                </Button>
+                <div key={s.step_id} className="mt-1 flex gap-1">
+                  <Button
+                    onClick={() => handleApprove(s.step_id)}
+                    variant="secondary"
+                    size="sm"
+                    className="flex-1 text-emerald-400"
+                  >
+                    approve
+                  </Button>
+                  <Button
+                    onClick={() => handleReject(s.step_id)}
+                    variant="secondary"
+                    size="sm"
+                    className="flex-1 text-red-400"
+                  >
+                    reject
+                  </Button>
+                </div>
               ))}
             </div>
           )}
