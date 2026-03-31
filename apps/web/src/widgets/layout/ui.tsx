@@ -16,7 +16,9 @@ import { useProjectStore } from '@/entities/project/model/store'
 import { api } from '@/shared/api/client'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/shared/ui/dialog'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shared/ui/tooltip'
+import { DirectoryPicker } from '@/widgets/directory-picker/ui'
 import { CommandPalette } from '@/widgets/command-palette/ui'
 import type { LucideIcon } from 'lucide-react'
 
@@ -75,9 +77,10 @@ export function RootLayout() {
       <div className="flex h-screen overflow-hidden">
         <CommandPalette />
 
-        <aside className="flex w-48 shrink-0 flex-col border-r border-sidebar-border bg-sidebar px-2 py-4">
-          <div className="mb-6 px-2 text-sm font-semibold tracking-tight text-sidebar-foreground">
-            Metronome
+        <aside className="flex w-52 shrink-0 flex-col border-r border-sidebar-border bg-sidebar px-3 py-4">
+          <div className="mb-6 px-2">
+            <span className="text-sm font-bold tracking-tight text-sidebar-foreground">metronome</span>
+            <span className="ml-1.5 rounded bg-primary/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-primary">v2</span>
           </div>
 
           <nav className="flex flex-col gap-0.5">
@@ -113,45 +116,47 @@ export function RootLayout() {
               <span className="text-[10px] font-medium uppercase tracking-wider text-sidebar-foreground/40">
                 projects
               </span>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={() => setShowNewProject(!showNewProject)}
-                    className="rounded p-0.5 text-sidebar-foreground/40 hover:text-sidebar-foreground transition-colors"
-                  >
-                    <Plus size={14} strokeWidth={1.5} />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="text-xs">
-                  new project
-                </TooltipContent>
-              </Tooltip>
+              <Dialog open={showNewProject} onOpenChange={setShowNewProject}>
+                <DialogTrigger asChild>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button className="rounded p-0.5 text-sidebar-foreground/40 hover:text-sidebar-foreground transition-colors">
+                        <Plus size={14} strokeWidth={1.5} />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="text-xs">
+                      new project
+                    </TooltipContent>
+                  </Tooltip>
+                </DialogTrigger>
+                <DialogContent className="max-w-sm">
+                  <DialogHeader>
+                    <DialogTitle className="text-sm">new project</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-3">
+                    <Input
+                      value={newName}
+                      onChange={(e) => setNewName(e.target.value)}
+                      placeholder="project name"
+                      className="h-8 text-xs"
+                    />
+                    <DirectoryPicker
+                      value={newPath}
+                      onChange={setNewPath}
+                      className="w-full"
+                    />
+                    <Button
+                      onClick={handleCreateProject}
+                      disabled={!newName.trim() || !newPath.trim()}
+                      className="w-full"
+                      size="sm"
+                    >
+                      create project
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
-
-            {showNewProject && (
-              <div className="mb-2 space-y-1.5 px-1">
-                <Input
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  placeholder="name"
-                  className="h-7 text-xs"
-                />
-                <Input
-                  value={newPath}
-                  onChange={(e) => setNewPath(e.target.value)}
-                  placeholder="/path/to/project"
-                  className="h-7 text-xs"
-                />
-                <Button
-                  onClick={handleCreateProject}
-                  variant="secondary"
-                  size="sm"
-                  className="w-full text-xs"
-                >
-                  create
-                </Button>
-              </div>
-            )}
 
             <button
               onClick={() => setActiveProject(null)}
