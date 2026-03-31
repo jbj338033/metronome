@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { listPipelines, loadPipeline, savePipeline } from '../pipeline/loader'
 import { pipelineEngine } from '../pipeline/engine'
+import { events } from '../events'
 import { getDb } from '../db'
 
 export const pipelineRoutes = new Hono()
@@ -68,6 +69,12 @@ pipelineRoutes.post('/runs/:id/approve/:stepId', (c) => {
 
 pipelineRoutes.post('/runs/:id/reject/:stepId', (c) => {
   pipelineEngine.reject(c.req.param('id'), c.req.param('stepId'))
+  return c.json({ ok: true })
+})
+
+pipelineRoutes.post('/runs/:id/interview', async (c) => {
+  const { answers } = await c.req.json<{ answers: Array<{ question: string; answer: string }> }>()
+  events.emit('interview:response', c.req.param('id'), answers)
   return c.json({ ok: true })
 })
 
