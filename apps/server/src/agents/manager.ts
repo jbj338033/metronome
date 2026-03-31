@@ -4,14 +4,17 @@ import { getDb } from '../db'
 import { getAdapter } from './registry'
 import { broadcast } from '../ws'
 import { events } from '../events'
-import type { AgentSpawnOptions, AgentStreamEvent } from './adapter'
+import type { AgentSpawnOptions } from './adapter'
+
+const MAX_BUFFER = 1_000_000
 
 interface RunningAgent {
   proc: ChildProcess
   adapterId: string
   taskId: string | null
   agentId: string
-  buffer: string
+  lineBuf: string
+  output: string
   timeout: ReturnType<typeof setTimeout> | null
 }
 
@@ -60,17 +63,16 @@ class AgentManagerImpl {
     const proc = spawn(cmd, args, {
       cwd: opts.cwd,
       env: { ...process.env, ...env },
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: ['pipe', 'pipe', 'pipe'],
     })
-
-    // stdin은 ignore — prompt는 args로 전달, stdin 경고 방지
 
     const running: RunningAgent = {
       proc,
       adapterId: opts.typeId,
       taskId: opts.taskId || null,
       agentId,
-      buffer: '',
+      lineBuf: '',
+      output: '',
       timeout: null,
     }
 
@@ -82,12 +84,16 @@ class AgentManagerImpl {
 
     this.processes.set(agentId, running)
 
-    proc.stdout?.on('data', (data: Buffer) => {
-      const chunk = data.toString()
-      running.buffer += chunk
-
-      const events = adapter.parseOutput(chunk)
+    const processLine = (line: string) => {
+      const events = adapter.parseOutput(line)
       for (const event of events) {
+        if (event.type === 'text' || event.type === 'done') {
+          running.output += event.content + '\n'
+          if (running.output.length > MAX_BUFFER) {
+            running.output = running.output.slice(-MAX_BUFFER / 2)
+          }
+        }
+
         db.prepare(`
           INSERT INTO agent_logs (agent_id, task_id, stream, content, parsed_type)
           VALUES (?, ?, 'stdout', ?, ?)
@@ -116,6 +122,15 @@ class AgentManagerImpl {
           }
         }
       }
+    }
+
+    proc.stdout?.on('data', (data: Buffer) => {
+      running.lineBuf += data.toString()
+      const lines = running.lineBuf.split('\n')
+      running.lineBuf = lines.pop() || ''
+      for (const line of lines) {
+        if (line.trim()) processLine(line)
+      }
     })
 
     proc.stderr?.on('data', (data: Buffer) => {
@@ -136,7 +151,7 @@ class AgentManagerImpl {
 
     proc.on('exit', (code) => {
       if (running.timeout) clearTimeout(running.timeout)
-      this.processes.delete(agentId)
+      if (running.lineBuf.trim()) processLine(running.lineBuf)
 
       const status = code === 0 ? 'completed' : 'failed'
       db.prepare('UPDATE agents SET status = ?, pid = NULL, ended_at = datetime(\'now\') WHERE id = ?')
@@ -165,6 +180,8 @@ class AgentManagerImpl {
       } else {
         events.emit('agent:failed', agentId, code)
       }
+
+      this.processes.delete(agentId)
     })
 
     if (proc.pid) {
@@ -233,7 +250,7 @@ class AgentManagerImpl {
   }
 
   getOutput(agentId: string) {
-    return this.processes.get(agentId)?.buffer || ''
+    return this.processes.get(agentId)?.output || ''
   }
 
   resume(previousAgentId: string, prompt: string): string {
@@ -274,10 +291,8 @@ class AgentManagerImpl {
   }
 }
 
-// globalThis 싱글톤 — HMR에서도 생존
-const key = '__metronome_agent_manager__'
-if (!(globalThis as any)[key]) {
-  (globalThis as any)[key] = new AgentManagerImpl()
-}
+const key = Symbol.for('metronome.agent_manager')
+const g = globalThis as unknown as Record<symbol, AgentManagerImpl>
+g[key] = new AgentManagerImpl()
 
-export const agentManager: AgentManagerImpl = (globalThis as any)[key]
+export const agentManager: AgentManagerImpl = g[key]

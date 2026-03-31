@@ -49,6 +49,10 @@ export const claudeAdapter: AgentAdapter = {
         const parsed = JSON.parse(line)
         const ts = Date.now()
 
+        if (parsed.type === 'system') {
+          continue
+        }
+
         if (parsed.type === 'assistant' && parsed.message?.content) {
           for (const block of parsed.message.content) {
             if (block.type === 'text') {
