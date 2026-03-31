@@ -72,7 +72,7 @@ export function DirectoryPicker({ value, onChange, className }: DirectoryPickerP
       <DialogTrigger asChild>
         <button
           className={cn(
-            'flex h-8 items-center gap-2 rounded-md border border-input bg-secondary px-3 text-xs text-left text-foreground/80 hover:bg-accent/50 transition-colors truncate',
+            'flex h-8 items-center gap-2 rounded-md border border-input bg-secondary px-3 text-xs text-left text-foreground/80 hover:bg-accent/50 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 transition-colors truncate outline-none',
             !value && 'text-muted-foreground',
             className,
           )}
