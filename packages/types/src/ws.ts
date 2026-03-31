@@ -60,4 +60,22 @@ export interface PipelineStepEvent {
 export interface PipelineStatusEvent {
   runId: string
   status: PipelineRunStatus
+  error?: string
+}
+
+export interface InterviewQuestion {
+  id: string
+  question: string
+  options?: string[]
+}
+
+export interface InterviewEvent {
+  runId: string
+  round: number
+  questions: InterviewQuestion[]
+}
+
+export interface InterviewAnswer {
+  question: string
+  answer: string
 }

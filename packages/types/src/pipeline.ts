@@ -1,5 +1,5 @@
 export type StepStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped' | 'cancelled' | 'retrying' | 'awaiting_approval'
-export type PipelineRunStatus = 'running' | 'completed' | 'failed' | 'cancelled' | 'interrupted' | 'awaiting_approval' | 'replanning'
+export type PipelineRunStatus = 'running' | 'completed' | 'failed' | 'cancelled' | 'interrupted' | 'awaiting_approval' | 'replanning' | 'interviewing'
 export type MergeStrategy = 'sequential' | 'manual'
 export type OnConflict = 'agent' | 'user'
 export type OnSkip = 'complete' | 'propagate'
