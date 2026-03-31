@@ -16,26 +16,18 @@ export function PipelineEditorPage() {
   const [runCwd, setRunCwd] = useState('')
 
   useEffect(() => {
-    api.tasks.list().catch(() => {})
-    fetch('/api/pipelines').then((r) => r.json()).then(setPipelines)
+    api.pipelines.list().then(setPipelines)
   }, [])
 
   useEffect(() => {
     if (!selected) { setPipeline(null); return }
-    fetch(`/api/pipelines/${selected}`).then((r) => r.json()).then(setPipeline)
+    api.pipelines.get(selected).then(setPipeline)
   }, [selected])
 
   async function handleRun() {
     if (!selected || !runPrompt.trim() || !runCwd.trim()) return
-    const res = await fetch(`/api/pipelines/${selected}/run`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: runPrompt, cwd: runCwd }),
-    })
-    if (res.ok) {
-      const { runId } = await res.json()
-      window.location.href = `/pipelines/runs/${runId}`
-    }
+    const { runId } = await api.pipelines.run(selected, { prompt: runPrompt, cwd: runCwd })
+    window.location.href = `/pipelines/runs/${runId}`
   }
 
   return (
