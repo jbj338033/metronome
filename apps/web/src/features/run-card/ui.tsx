@@ -1,11 +1,23 @@
 import { useState, useEffect } from 'react'
 import { AlertTriangle } from 'lucide-react'
+import { toast } from 'sonner'
 import { api } from '@/shared/api/client'
 import { wsClient } from '@/shared/api/ws'
 import { cn } from '@/shared/lib/cn'
 import { StatusIcon, pipelineStatusMap } from '@/shared/lib/status'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/shared/ui/alert-dialog'
 import { PipelineTimeline } from '@/widgets/pipeline-timeline/ui'
 import { AgentTerminal } from '@/widgets/agent-terminal/ui'
 import type { PipelineRun, StepRun } from '@metronome/types'
@@ -22,7 +34,7 @@ export function RunCard({ run, isExpanded, onToggle }: {
   const input = JSON.parse(run.input) as { prompt: string; cwd: string }
 
   useEffect(() => {
-    api.pipelines.getRunSteps(run.id).then(setSteps)
+    api.pipelines.getRunSteps(run.id).then(setSteps).catch(() => toast.error('failed to load steps'))
     wsClient.subscribe([`pipeline:${run.id}`])
     const unsub = wsClient.onMessage((msg) => {
       if (msg.topic === `pipeline:${run.id}`) {
@@ -36,6 +48,31 @@ export function RunCard({ run, isExpanded, onToggle }: {
   const totalCount = steps.filter((s) => !s.step_id.includes('__')).length
   const activeStepRun = steps.find((s) => s.step_id === activeStep && s.status === 'running')
   const needsApproval = run.status === 'awaiting_approval'
+
+  async function handleCancel() {
+    try {
+      await api.pipelines.cancelRun(run.id)
+      toast.success('pipeline cancelled')
+    } catch {
+      toast.error('failed to cancel pipeline')
+    }
+  }
+
+  async function handleApprove(stepId: string) {
+    try {
+      await api.pipelines.approveStep(run.id, stepId)
+    } catch {
+      toast.error('failed to approve step')
+    }
+  }
+
+  async function handleReject(stepId: string) {
+    try {
+      await api.pipelines.rejectStep(run.id, stepId)
+    } catch {
+      toast.error('failed to reject step')
+    }
+  }
 
   return (
     <div className={cn(
@@ -74,15 +111,43 @@ export function RunCard({ run, isExpanded, onToggle }: {
 
             {needsApproval && steps.filter((s) => s.status === 'pending').map((s) => (
               <div key={s.step_id} className="px-4 py-2 flex gap-1">
-                <Button onClick={() => api.pipelines.approveStep(run.id, s.step_id)} variant="secondary" size="sm" className="flex-1 text-emerald-400">approve</Button>
-                <Button onClick={() => api.pipelines.rejectStep(run.id, s.step_id)} variant="secondary" size="sm" className="flex-1 text-red-400">reject</Button>
+                <Button onClick={() => handleApprove(s.step_id)} variant="secondary" size="sm" className="flex-1 text-emerald-400">approve</Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="secondary" size="sm" className="flex-1 text-red-400">reject</Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>reject step?</AlertDialogTitle>
+                      <AlertDialogDescription>this will cancel the pipeline run</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => handleReject(s.step_id)}>reject</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             ))}
 
             {run.status === 'running' && (
               <div className="p-4 border-t border-border flex gap-1">
-                <Button onClick={() => api.pipelines.cancelRun(run.id)} variant="destructive" size="sm" className="flex-1">cancel</Button>
-                <Button onClick={() => api.pipelines.requestReplan(run.id)} variant="secondary" size="sm" className="flex-1">replan</Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="sm" className="flex-1">cancel</Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>cancel pipeline?</AlertDialogTitle>
+                      <AlertDialogDescription>all running agents will be killed</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>keep running</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleCancel}>cancel pipeline</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+                <Button onClick={() => api.pipelines.requestReplan(run.id).catch(() => toast.error('replan failed'))} variant="secondary" size="sm" className="flex-1">replan</Button>
               </div>
             )}
           </div>
