@@ -1,3 +1,7 @@
+import Ajv from 'ajv'
+
+const ajv = new Ajv({ allErrors: true })
+
 /**
  * 에이전트의 free-form 출력에서 ```json 블록을 추출
  */
@@ -8,6 +12,26 @@ export function extractStructured(output: string): unknown | null {
     return JSON.parse(match[1].trim())
   } catch {
     return null
+  }
+}
+
+/**
+ * JSON 추출 + 스키마 검증
+ */
+export function extractAndValidate(
+  output: string,
+  schema?: Record<string, unknown>,
+): { data: unknown; valid: boolean; errors?: string[] } {
+  const data = extractStructured(output)
+  if (!data) return { data: null, valid: false, errors: ['no JSON block found in output'] }
+  if (!schema) return { data, valid: true }
+
+  const validate = ajv.compile(schema)
+  const valid = validate(data)
+  return {
+    data,
+    valid: !!valid,
+    errors: valid ? undefined : validate.errors?.map((e) => `${e.instancePath} ${e.message}`) || [],
   }
 }
 
