@@ -1,8 +1,16 @@
-export type StepStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped' | 'cancelled'
+export type StepStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped' | 'cancelled' | 'retrying'
 export type PipelineRunStatus = 'running' | 'completed' | 'failed' | 'cancelled' | 'interrupted' | 'awaiting_approval'
 export type MergeStrategy = 'sequential' | 'manual'
 export type OnConflict = 'agent' | 'user'
 export type OnSkip = 'complete' | 'propagate'
+
+export interface VerifyConfig {
+  blueprint: string
+  max_fix_attempts: number
+  fix_blueprint?: string
+  pass_condition: string
+  include_in_fix: ('issues' | 'output' | 'artifacts')[]
+}
 
 export interface PipelineStep {
   id: string
@@ -19,6 +27,7 @@ export interface PipelineStep {
   on_skip?: OnSkip
   approval?: boolean
   context?: Array<{ step: string; include: string[] }>
+  verify?: VerifyConfig
 }
 
 export interface Pipeline {
@@ -52,4 +61,6 @@ export interface StepRun {
   structured: string | null
   started_at: string | null
   ended_at: string | null
+  verify_attempt: number | null
+  parent_step_run_id: string | null
 }
