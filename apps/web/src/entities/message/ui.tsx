@@ -1,17 +1,5 @@
 import { cn } from '@/shared/lib/cn'
-
-function formatRelativeTime(timestamp: string) {
-  const date = new Date(timestamp.endsWith('Z') || timestamp.includes('+') ? timestamp : timestamp + 'Z')
-  const ms = Date.now() - date.getTime()
-  if (Number.isNaN(ms)) return ''
-  const s = Math.floor(ms / 1000)
-  if (s < 60) return '방금'
-  const m = Math.floor(s / 60)
-  if (m < 60) return `${m}분 전`
-  const h = Math.floor(m / 60)
-  if (h < 24) return `${h}시간 전`
-  return `${Math.floor(h / 24)}일 전`
-}
+import { formatRelativeTime } from '@/shared/lib/format'
 
 interface MessageBubbleProps {
   role: 'user' | 'assistant' | 'system'
@@ -26,8 +14,8 @@ export function MessageBubble({ role, content, timestamp }: MessageBubbleProps) 
         className={cn(
           'max-w-[80%] rounded-lg px-3 py-2 text-sm',
           role === 'user'
-            ? 'bg-secondary text-secondary-foreground'
-            : 'border-l-2 border-muted bg-card text-card-foreground',
+            ? 'bg-primary/15 text-foreground'
+            : 'border-l-2 border-primary/30 bg-surface-1 text-card-foreground',
         )}
       >
         <pre className="whitespace-pre-wrap font-[inherit]">{content}</pre>
