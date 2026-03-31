@@ -77,13 +77,12 @@ export function RootLayout() {
       <div className="flex h-screen overflow-hidden">
         <CommandPalette />
 
-        <aside className="flex w-52 shrink-0 flex-col border-r border-sidebar-border bg-sidebar px-3 py-4">
-          <div className="mb-6 px-2">
-            <span className="text-sm font-bold tracking-tight text-sidebar-foreground">metronome</span>
-            <span className="ml-1.5 rounded bg-primary/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-primary">v2</span>
+        <aside className="flex w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar px-3 py-5">
+          <div className="mb-8 px-3">
+            <span className="text-base font-bold tracking-tight text-sidebar-foreground">metronome</span>
           </div>
 
-          <nav className="flex flex-col gap-0.5">
+          <nav className="flex flex-col gap-1">
             {nav.map(({ to, label, key, icon: Icon }) => (
               <NavLink
                 key={to}
@@ -91,30 +90,29 @@ export function RootLayout() {
                 end={to === '/live'}
                 className={({ isActive }) =>
                   cn(
-                    'flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition-colors duration-150',
+                    'flex items-center gap-3 rounded-md px-3 py-2.5 text-[15px] transition-colors duration-150',
                     isActive
                       ? 'bg-sidebar-accent text-sidebar-accent-foreground'
                       : 'text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground',
                   )
                 }
               >
-                <Icon size={16} strokeWidth={1.5} />
+                <Icon size={20} strokeWidth={1.5} />
                 <span className="flex-1">{label}</span>
                 {label === 'Live' && runningCount > 0 && (
                   <span className="flex items-center gap-1 text-[10px] text-emerald-400">
                     <StatusIcon status="in_progress" className="size-2.5" /> {runningCount}
                   </span>
                 )}
-                <kbd className="text-[10px] text-sidebar-foreground/30">{key}</kbd>
+                <kbd className="text-[10px] text-sidebar-foreground/40">{key}</kbd>
               </NavLink>
             ))}
           </nav>
 
-          {/* Projects */}
-          <div className="mt-4 border-t border-sidebar-border pt-3 px-1">
-            <div className="flex items-center justify-between px-1 mb-1">
-              <span className="text-[10px] font-medium uppercase tracking-wider text-sidebar-foreground/40">
-                projects
+          <div className="mt-4 flex min-h-0 flex-1 flex-col border-t border-sidebar-border pt-3 px-1">
+            <div className="flex items-center justify-between px-1 mb-1.5">
+              <span className="text-[13px] text-sidebar-foreground/40">
+                Projects
               </span>
               <Dialog open={showNewProject} onOpenChange={setShowNewProject}>
                 <DialogTrigger asChild>
@@ -158,43 +156,42 @@ export function RootLayout() {
               </Dialog>
             </div>
 
-            <button
-              onClick={() => setActiveProject(null)}
-              className={cn(
-                'flex w-full items-center gap-2 rounded-md px-2 py-1 text-xs transition-colors',
-                !activeProjectId
-                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                  : 'text-sidebar-foreground/50 hover:text-sidebar-foreground',
-              )}
-            >
-              all projects
-            </button>
-            {projects.map((p) => (
+            <div className="flex flex-col gap-0.5 overflow-auto">
               <button
-                key={p.id}
-                onClick={() => setActiveProject(p.id)}
+                onClick={() => setActiveProject(null)}
                 className={cn(
-                  'flex w-full items-center gap-2 rounded-md px-2 py-1 text-xs transition-colors truncate',
-                  activeProjectId === p.id
+                  'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors',
+                  !activeProjectId
                     ? 'bg-sidebar-accent text-sidebar-accent-foreground'
                     : 'text-sidebar-foreground/50 hover:text-sidebar-foreground',
                 )}
               >
-                <FolderOpen size={12} strokeWidth={1.5} className="shrink-0 opacity-50" />
-                {p.name}
+                all projects
               </button>
-            ))}
+              {projects.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => setActiveProject(p.id)}
+                  className={cn(
+                    'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors truncate',
+                    activeProjectId === p.id
+                      ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                      : 'text-sidebar-foreground/50 hover:text-sidebar-foreground',
+                  )}
+                >
+                  <FolderOpen size={12} strokeWidth={1.5} className="shrink-0 opacity-70" />
+                  {p.name}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="mt-auto px-2">
-            <div className="text-xs text-sidebar-foreground/40">
-              <kbd className="rounded border border-sidebar-border px-1 py-0.5 text-[10px] font-mono">⌘K</kbd>
-              {' '}Command
-            </div>
+          <div className="mt-auto px-2 text-xs text-sidebar-foreground/30">
+            ⌘K command
           </div>
         </aside>
 
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-auto bg-surface-0">
           <Outlet />
         </main>
       </div>
