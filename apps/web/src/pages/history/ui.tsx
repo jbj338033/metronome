@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { Clock } from 'lucide-react'
 import { api } from '@/shared/api/client'
 import { useTaskStore } from '@/entities/task/model/store'
+import { useProjectStore } from '@/entities/project/model/store'
 import { StatusIcon, pipelineStatusMap } from '@/shared/lib/status'
 import { formatRelativeTime, formatDuration } from '@/shared/lib/format'
 import { PageHeader } from '@/shared/ui/page-header'
@@ -13,10 +14,11 @@ import type { PipelineRun } from '@metronome/types'
 export function HistoryPage() {
   const [runs, setRuns] = useState<PipelineRun[]>([])
   const tasks = useTaskStore((s) => s.tasks)
+  const activeProjectId = useProjectStore((s) => s.activeProjectId)
 
   useEffect(() => {
-    api.pipelines.listRuns().then(setRuns)
-  }, [])
+    api.pipelines.listRuns(activeProjectId || undefined).then(setRuns)
+  }, [activeProjectId])
 
   const completedRuns = runs.filter((r) => r.status !== 'running' && r.status !== 'awaiting_approval')
 

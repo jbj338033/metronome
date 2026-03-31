@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, Link } from 'react-router'
 import { Activity, Rocket } from 'lucide-react'
 import { api } from '@/shared/api/client'
+import { wsClient } from '@/shared/api/ws'
+import { useProjectStore } from '@/entities/project/model/store'
 import { Button } from '@/shared/ui/button'
 import { PageHeader } from '@/shared/ui/page-header'
 import { EmptyState } from '@/shared/ui/empty-state'
@@ -16,20 +18,38 @@ export function LivePage() {
   const [stats, setStats] = useState<ModelStat[]>([])
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const { runId } = useParams()
+  const activeProjectId = useProjectStore((s) => s.activeProjectId)
+
+  const fetchData = useCallback(() => {
+    api.pipelines.listRuns(activeProjectId || undefined).then(setRuns)
+    api.agents.stats().then((r) => setStats(r.stats))
+  }, [activeProjectId])
 
   useEffect(() => {
-    const fetch = () => {
-      api.pipelines.listRuns().then(setRuns)
-      api.agents.stats().then((r) => setStats(r.stats))
-    }
-    fetch()
-    const interval = setInterval(fetch, 5000)
-    return () => clearInterval(interval)
-  }, [])
+    fetchData()
+
+    wsClient.subscribe(['system'])
+    const unsub = wsClient.onMessage((msg) => {
+      if (msg.event === 'status' && msg.topic.startsWith('pipeline:')) {
+        fetchData()
+      }
+    })
+
+    const interval = setInterval(fetchData, 15000)
+    return () => { clearInterval(interval); unsub() }
+  }, [fetchData])
 
   useEffect(() => {
     if (runId) setExpandedId(runId)
   }, [runId])
+
+  useEffect(() => {
+    for (const run of runs) {
+      if (run.status === 'running' || run.status === 'awaiting_approval' || run.status === 'replanning') {
+        wsClient.subscribe([`pipeline:${run.id}`])
+      }
+    }
+  }, [runs])
 
   const activeRuns = runs.filter((r) => r.status === 'running' || r.status === 'awaiting_approval' || r.status === 'replanning')
   const recentRuns = runs.filter((r) => r.status !== 'running' && r.status !== 'awaiting_approval' && r.status !== 'replanning').slice(0, 10)
