@@ -7,36 +7,32 @@ import { StepPanel } from '@/widgets/pipeline-canvas/step-panel'
 import { cn } from '@/shared/lib/cn'
 import { StatusIcon } from '@/shared/lib/status'
 import { Button } from '@/shared/ui/button'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
 import type { Blueprint, Pipeline, PipelineStep } from '@metronome/types'
 
-type Tab = 'blueprints' | 'templates' | 'agents'
-
 export function ConfigPage() {
-  const [tab, setTab] = useState<Tab>('blueprints')
-
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-4 border-b border-border px-6 py-3">
-        <h1 className="text-sm font-semibold">Config</h1>
-        <div className="ml-auto flex gap-1">
-          {(['blueprints', 'templates', 'agents'] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={cn(
-                'rounded-md px-2.5 py-1 text-xs transition-colors',
-                tab === t ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground',
-              )}
-            >
-              {t}
-            </button>
-          ))}
+      <Tabs defaultValue="blueprints" className="flex h-full flex-col">
+        <div className="flex items-center gap-4 border-b border-border px-6 py-3">
+          <h1 className="text-sm font-semibold">Config</h1>
+          <TabsList className="ml-auto h-7">
+            <TabsTrigger value="blueprints" className="text-xs px-2.5 h-6">blueprints</TabsTrigger>
+            <TabsTrigger value="templates" className="text-xs px-2.5 h-6">templates</TabsTrigger>
+            <TabsTrigger value="agents" className="text-xs px-2.5 h-6">agents</TabsTrigger>
+          </TabsList>
         </div>
-      </div>
 
-      {tab === 'blueprints' && <BlueprintsTab />}
-      {tab === 'templates' && <TemplatesTab />}
-      {tab === 'agents' && <AgentsTab />}
+        <TabsContent value="blueprints" className="flex-1 overflow-hidden mt-0">
+          <BlueprintsTab />
+        </TabsContent>
+        <TabsContent value="templates" className="flex-1 overflow-hidden mt-0">
+          <TemplatesTab />
+        </TabsContent>
+        <TabsContent value="agents" className="flex-1 overflow-auto mt-0">
+          <AgentsTab />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
