@@ -9,7 +9,9 @@
     "sourceMap": true,
     "outDir": "dist",
     "rootDir": "src",
-    "skipLibCheck": true
+    "emitDeclarationOnly": true,
+    "skipLibCheck": true,
+    "composite": true
   },
   "include": ["src"]
 }

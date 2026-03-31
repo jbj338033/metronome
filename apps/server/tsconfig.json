@@ -10,7 +10,7 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "paths": {
-      "@metronome/types": ["../../packages/types/src"]
+      "@metronome/types": ["../../packages/types/dist"]
     }
   },
   "include": ["src"],
