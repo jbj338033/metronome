@@ -42,6 +42,7 @@ export const pipelineStatusMap: Record<string, string> = {
   cancelled: 'cancelled',
   interrupted: 'interrupted',
   replanning: 'pending',
+  interviewing: 'awaiting_approval',
   awaiting_approval: 'awaiting_approval',
   pending: 'pending',
   skipped: 'cancelled',

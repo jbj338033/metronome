@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { AlertTriangle } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { AlertTriangle, MessageCircle, Send } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/shared/api/client'
 import { wsClient } from '@/shared/api/ws'
@@ -7,6 +7,7 @@ import { cn } from '@/shared/lib/cn'
 import { StatusIcon, pipelineStatusMap } from '@/shared/lib/status'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
+import { Input } from '@/shared/ui/input'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,23 +32,36 @@ export function RunCard({ run, isExpanded, onToggle }: {
 }) {
   const [steps, setSteps] = useState<StepRunWithModel[]>([])
   const [activeStep, setActiveStep] = useState<string | null>(null)
+  const [interviewQuestions, setInterviewQuestions] = useState<Array<{ id: string; question: string; options?: string[] }>>([])
+  const [interviewAnswers, setInterviewAnswers] = useState<Record<string, string>>({})
+  const [submittingInterview, setSubmittingInterview] = useState(false)
   const input = JSON.parse(run.input) as { prompt: string; cwd: string }
 
+  const refreshSteps = useCallback(() => {
+    api.pipelines.getRunSteps(run.id).then(setSteps)
+  }, [run.id])
+
   useEffect(() => {
-    api.pipelines.getRunSteps(run.id).then(setSteps).catch(() => toast.error('failed to load steps'))
+    refreshSteps()
     wsClient.subscribe([`pipeline:${run.id}`])
     const unsub = wsClient.onMessage((msg) => {
-      if (msg.topic === `pipeline:${run.id}`) {
-        api.pipelines.getRunSteps(run.id).then(setSteps)
+      if (msg.topic !== `pipeline:${run.id}`) return
+      if (msg.event === 'interview') {
+        const data = msg.data as { questions: Array<{ id: string; question: string; options?: string[] }> }
+        setInterviewQuestions(data.questions)
+        setInterviewAnswers({})
+      } else {
+        refreshSteps()
       }
     })
     return () => { wsClient.unsubscribe([`pipeline:${run.id}`]); unsub() }
-  }, [run.id])
+  }, [run.id, refreshSteps])
 
   const completedCount = steps.filter((s) => s.status === 'completed' && !s.step_id.includes('__')).length
   const totalCount = steps.filter((s) => !s.step_id.includes('__')).length
   const activeStepRun = steps.find((s) => s.step_id === activeStep && s.status === 'running')
   const needsApproval = run.status === 'awaiting_approval'
+  const isInterviewing = run.status === 'interviewing'
 
   async function handleCancel() {
     try {
@@ -74,10 +88,28 @@ export function RunCard({ run, isExpanded, onToggle }: {
     }
   }
 
+  async function handleSubmitInterview() {
+    const answers = interviewQuestions.map((q) => ({
+      question: q.question,
+      answer: interviewAnswers[q.id] || '',
+    })).filter((a) => a.answer.trim())
+
+    if (answers.length === 0) return
+    setSubmittingInterview(true)
+    try {
+      await api.pipelines.submitInterview(run.id, answers)
+      setInterviewQuestions([])
+    } catch {
+      toast.error('failed to submit answers')
+    } finally {
+      setSubmittingInterview(false)
+    }
+  }
+
   return (
     <div className={cn(
       'border-b border-border transition-colors',
-      needsApproval && 'border-l-2 border-l-yellow-500/50 bg-yellow-950/5',
+      (needsApproval || isInterviewing) && 'border-l-2 border-l-yellow-500/50 bg-yellow-950/5',
       isExpanded && 'bg-surface-1',
     )}>
       <button onClick={onToggle} className="flex w-full items-center gap-3 px-6 py-3.5 text-left hover:bg-surface-1 transition-colors">
@@ -96,6 +128,7 @@ export function RunCard({ run, isExpanded, onToggle }: {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {isInterviewing && <MessageCircle size={14} className="text-yellow-400" />}
           {needsApproval && <AlertTriangle size={14} className="text-yellow-400" />}
           <Badge variant="secondary" className="gap-1.5 text-[11px]">
             <StatusIcon status={pipelineStatusMap[run.status] || 'pending'} className="size-3" />
@@ -104,7 +137,56 @@ export function RunCard({ run, isExpanded, onToggle }: {
         </div>
       </button>
 
-      {isExpanded && (
+      {isExpanded && isInterviewing && interviewQuestions.length > 0 && (
+        <div className="border-t border-border p-6 space-y-4">
+          <div className="text-sm text-muted-foreground">the orchestrator needs a few more details before creating a plan:</div>
+          {interviewQuestions.map((q) => (
+            <div key={q.id} className="space-y-2">
+              <label className="text-sm font-medium text-foreground">{q.question}</label>
+              {q.options ? (
+                <div className="flex flex-wrap gap-2">
+                  {q.options.map((opt) => (
+                    <button
+                      key={opt}
+                      onClick={() => setInterviewAnswers((prev) => ({ ...prev, [q.id]: opt }))}
+                      className={cn(
+                        'rounded-md border px-3 py-1.5 text-xs transition-colors',
+                        interviewAnswers[q.id] === opt
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'border-border text-muted-foreground hover:border-primary/50',
+                      )}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <Input
+                  value={interviewAnswers[q.id] || ''}
+                  onChange={(e) => setInterviewAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
+                  placeholder="your answer..."
+                  className="h-8 text-sm"
+                />
+              )}
+            </div>
+          ))}
+          <div className="flex gap-2 pt-2">
+            <Button
+              onClick={handleSubmitInterview}
+              disabled={submittingInterview || Object.values(interviewAnswers).every((v) => !v.trim())}
+              size="sm"
+            >
+              <Send size={14} />
+              submit answers
+            </Button>
+            <Button onClick={handleCancel} variant="ghost" size="sm" className="text-muted-foreground">
+              cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {isExpanded && !isInterviewing && (
         <div className="flex min-h-[400px] max-h-[500px] border-t border-border">
           <div className="w-80 shrink-0 overflow-auto border-r border-border">
             <PipelineTimeline steps={steps} onStepClick={setActiveStep} activeStepId={activeStep} />

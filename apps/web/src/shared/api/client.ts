@@ -72,6 +72,7 @@ export const api = {
     cancelRun: (id: string) => http.post(`pipelines/runs/${id}/cancel`).json<{ ok: boolean }>(),
     approveStep: (runId: string, stepId: string) => http.post(`pipelines/runs/${runId}/approve/${stepId}`).json<{ ok: boolean }>(),
     rejectStep: (runId: string, stepId: string) => http.post(`pipelines/runs/${runId}/reject/${stepId}`).json<{ ok: boolean }>(),
+    submitInterview: (runId: string, answers: Array<{ question: string; answer: string }>) => http.post(`pipelines/runs/${runId}/interview`, { json: { answers } }).json<{ ok: boolean }>(),
     getRun: (id: string) => http.get(`pipelines/runs/${id}`).json<PipelineRun>(),
     getRunSteps: (id: string) => http.get(`pipelines/runs/${id}/steps`).json<StepRun[]>(),
     getRunFiles: (id: string) => http.get(`pipelines/runs/${id}/files`).json<FileChange[]>(),
