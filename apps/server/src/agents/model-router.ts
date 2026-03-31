@@ -36,3 +36,23 @@ export function estimateCost(model: string, tokensIn: number, tokensOut: number)
 export function getModelTiers() {
   return tiers
 }
+
+export interface TaskProfile {
+  type: 'research' | 'implement' | 'review' | 'quickgen' | 'plan'
+  complexity: 'low' | 'medium' | 'high'
+}
+
+export function selectAgentAndModel(profile: TaskProfile): { agent: string; model: string } {
+  if (profile.type === 'research') {
+    return { agent: 'gemini', model: '' }
+  }
+  if (profile.type === 'quickgen' && profile.complexity === 'low') {
+    return { agent: 'codex', model: '' }
+  }
+  if (profile.type === 'plan' && profile.complexity === 'high') {
+    return { agent: 'claude-code', model: 'opus' }
+  }
+
+  const model = selectModel(profile.complexity)
+  return { agent: 'claude-code', model }
+}
