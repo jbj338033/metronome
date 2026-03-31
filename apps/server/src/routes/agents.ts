@@ -25,17 +25,24 @@ agentRoutes.get('/running', (c) => {
   return c.json(agentManager.getRunning())
 })
 
-agentRoutes.get('/:id', (c) => {
-  const agent = getDb().prepare('SELECT * FROM agents WHERE id = ?').get(c.req.param('id'))
-  if (!agent) return c.json({ error: 'not found' }, 404)
-  return c.json(agent)
-})
+agentRoutes.get('/stats', (c) => {
+  const db = getDb()
+  const rows = db.prepare(`
+    SELECT model, COUNT(*) as count,
+      SUM(tokens_in) as total_in, SUM(tokens_out) as total_out
+    FROM agents WHERE status IN ('completed', 'failed')
+    GROUP BY model
+  `).all() as Array<{ model: string; count: number; total_in: number; total_out: number }>
 
-agentRoutes.get('/:id/logs', (c) => {
-  const logs = getDb()
-    .prepare('SELECT * FROM agent_logs WHERE agent_id = ? ORDER BY id DESC LIMIT 200')
-    .all(c.req.param('id'))
-  return c.json(logs)
+  const stats = rows.map((r) => ({
+    model: r.model || 'unknown',
+    count: r.count,
+    tokens_in: r.total_in,
+    tokens_out: r.total_out,
+    estimated_cost: estimateCost(r.model || '', r.total_in, r.total_out),
+  }))
+
+  return c.json({ stats, tiers: getModelTiers() })
 })
 
 agentRoutes.post('/spawn', async (c) => {
@@ -65,28 +72,21 @@ agentRoutes.post('/spawn', async (c) => {
     })
     return c.json({ agentId }, 201)
   } catch (err) {
-    return c.json({ error: (err as Error).message }, 400)
+    return c.json({ error: (err instanceof Error) ? err.message : 'internal error' }, 400)
   }
 })
 
-agentRoutes.get('/stats', (c) => {
-  const db = getDb()
-  const rows = db.prepare(`
-    SELECT model, COUNT(*) as count,
-      SUM(tokens_in) as total_in, SUM(tokens_out) as total_out
-    FROM agents WHERE status IN ('completed', 'failed')
-    GROUP BY model
-  `).all() as Array<{ model: string; count: number; total_in: number; total_out: number }>
+agentRoutes.get('/:id', (c) => {
+  const agent = getDb().prepare('SELECT * FROM agents WHERE id = ?').get(c.req.param('id'))
+  if (!agent) return c.json({ error: 'not found' }, 404)
+  return c.json(agent)
+})
 
-  const stats = rows.map((r) => ({
-    model: r.model || 'unknown',
-    count: r.count,
-    tokens_in: r.total_in,
-    tokens_out: r.total_out,
-    estimated_cost: estimateCost(r.model || '', r.total_in, r.total_out),
-  }))
-
-  return c.json({ stats, tiers: getModelTiers() })
+agentRoutes.get('/:id/logs', (c) => {
+  const logs = getDb()
+    .prepare('SELECT * FROM agent_logs WHERE agent_id = ? ORDER BY id DESC LIMIT 200')
+    .all(c.req.param('id'))
+  return c.json(logs)
 })
 
 agentRoutes.post('/:id/resume', async (c) => {
@@ -95,7 +95,7 @@ agentRoutes.post('/:id/resume', async (c) => {
     const newAgentId = agentManager.resume(c.req.param('id'), prompt)
     return c.json({ agentId: newAgentId }, 201)
   } catch (err) {
-    return c.json({ error: (err as Error).message }, 400)
+    return c.json({ error: (err instanceof Error) ? err.message : 'internal error' }, 400)
   }
 })
 
