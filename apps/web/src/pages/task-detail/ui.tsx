@@ -1,18 +1,16 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router'
+import { FileQuestion, ArrowLeft } from 'lucide-react'
+import { useShallow } from 'zustand/react/shallow'
 import { useAppStore } from '@/shared/stores/app'
 import { api } from '@/shared/api/client'
 import { wsClient } from '@/shared/api/ws'
 import { AgentTerminal } from '@/widgets/agent-terminal/ui'
 import { cn } from '@/shared/lib/cn'
-
-const statusBadge: Record<string, { label: string; cls: string }> = {
-  pending: { label: 'pending', cls: 'bg-zinc-800 text-zinc-400' },
-  in_progress: { label: 'running', cls: 'bg-emerald-900/50 text-emerald-400' },
-  completed: { label: 'done', cls: 'bg-zinc-800 text-zinc-300' },
-  failed: { label: 'failed', cls: 'bg-red-900/30 text-red-400' },
-  cancelled: { label: 'cancelled', cls: 'bg-zinc-800 text-zinc-500' },
-}
+import { StatusIcon } from '@/shared/lib/status'
+import { Badge } from '@/shared/ui/badge'
+import { Button } from '@/shared/ui/button'
+import { Input } from '@/shared/ui/input'
 
 function formatTokens(n: number) {
   if (n === 0) return '—'
@@ -23,7 +21,7 @@ function formatTokens(n: number) {
 export function TaskDetailPage() {
   const { id } = useParams()
   const task = useAppStore((s) => s.tasks.find((t) => t.id === id))
-  const subtasks = useAppStore((s) => s.tasks.filter((t) => t.parent_id === id))
+  const subtasks = useAppStore(useShallow((s) => s.tasks.filter((t) => t.parent_id === id)))
   const [messages, setMessages] = useState<any[]>([])
   const [stdinInput, setStdinInput] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -52,24 +50,36 @@ export function TaskDetailPage() {
   }
 
   if (!task) {
-    return <div className="p-6 text-sm text-zinc-500">task not found</div>
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3">
+        <FileQuestion size={32} strokeWidth={1} className="text-muted-foreground/40" />
+        <p className="text-sm text-muted-foreground">task not found</p>
+        <Button asChild variant="secondary" size="sm">
+          <Link to="/tasks">
+            <ArrowLeft size={14} />
+            back to tasks
+          </Link>
+        </Button>
+      </div>
+    )
   }
-
-  const badge = statusBadge[task.status] || statusBadge.pending
 
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="flex items-center gap-3 border-b border-zinc-800 px-6 py-3">
-        <Link to="/tasks" className="text-xs text-zinc-500 hover:text-zinc-300">← Tasks</Link>
+      <div className="flex items-center gap-3 border-b border-border px-6 py-3">
+        <Link to="/tasks" className="text-xs text-muted-foreground hover:text-foreground transition-colors">← Tasks</Link>
         <h1 className="flex-1 truncate text-sm font-semibold">{task.title}</h1>
-        <span className={cn('rounded-full px-2 py-0.5 text-xs', badge.cls)}>{badge.label}</span>
+        <Badge variant="secondary" className="gap-1.5">
+          <StatusIcon status={task.status} className="size-3" />
+          {task.status === 'in_progress' ? 'running' : task.status}
+        </Badge>
       </div>
 
       {/* Meta */}
-      <div className="flex gap-4 border-b border-zinc-900 px-6 py-2 text-xs text-zinc-500">
-        <span>tokens: <span className="font-[var(--font-mono)] text-zinc-400">{formatTokens(task.total_tokens)}</span></span>
-        {task.agent_id && <span>agent: <span className="text-zinc-400">{task.agent_id.slice(0, 8)}</span></span>}
+      <div className="flex gap-4 border-b border-border px-6 py-2 text-xs text-muted-foreground">
+        <span>tokens: <span className="font-mono text-foreground/70">{formatTokens(task.total_tokens)}</span></span>
+        {task.agent_id && <span>agent: <span className="font-mono text-foreground/70">{task.agent_id.slice(0, 8)}</span></span>}
       </div>
 
       <div className="flex flex-1 overflow-hidden">
@@ -77,23 +87,18 @@ export function TaskDetailPage() {
         <div className="flex flex-1 flex-col overflow-auto">
           {/* Subtasks */}
           {subtasks.length > 0 && (
-            <div className="border-b border-zinc-900 px-6 py-3">
-              <div className="mb-2 text-xs font-medium text-zinc-500">subtasks</div>
+            <div className="border-b border-border px-6 py-3">
+              <div className="mb-2 text-xs font-medium text-muted-foreground">subtasks</div>
               <div className="space-y-1">
                 {subtasks.map((sub) => (
                   <Link
                     key={sub.id}
                     to={`/tasks/${sub.id}`}
-                    className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-zinc-900"
+                    className="flex items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-accent transition-colors"
                   >
-                    <span className={cn(
-                      'text-xs',
-                      sub.status === 'in_progress' ? 'text-emerald-400' : sub.status === 'completed' ? 'text-zinc-400' : sub.status === 'failed' ? 'text-red-400' : 'text-zinc-600',
-                    )}>
-                      {sub.status === 'in_progress' ? '●' : sub.status === 'completed' ? '✓' : sub.status === 'failed' ? '✗' : '○'}
-                    </span>
-                    <span className="flex-1 truncate text-zinc-300">{sub.title}</span>
-                    <span className="font-[var(--font-mono)] text-xs text-zinc-600">{formatTokens(sub.total_tokens)}</span>
+                    <StatusIcon status={sub.status} className="size-3" />
+                    <span className="flex-1 truncate text-foreground/80">{sub.title}</span>
+                    <span className="font-mono text-xs text-muted-foreground">{formatTokens(sub.total_tokens)}</span>
                   </Link>
                 ))}
               </div>
@@ -106,7 +111,7 @@ export function TaskDetailPage() {
               <div key={msg.id} className={cn('flex', msg.role === 'user' ? 'justify-end' : 'justify-start')}>
                 <div className={cn(
                   'max-w-[80%] rounded-lg px-3 py-2 text-sm',
-                  msg.role === 'user' ? 'bg-zinc-800 text-zinc-100' : 'bg-zinc-900 text-zinc-300',
+                  msg.role === 'user' ? 'bg-secondary text-secondary-foreground' : 'border-l-2 border-muted bg-card text-card-foreground',
                 )}>
                   <pre className="whitespace-pre-wrap font-[inherit]">{msg.content}</pre>
                 </div>
@@ -117,24 +122,24 @@ export function TaskDetailPage() {
 
         {/* Right: agent terminal */}
         {task.agent_id && task.status === 'in_progress' && (
-          <div className="flex w-[400px] shrink-0 flex-col border-l border-zinc-800">
-            <div className="border-b border-zinc-800 px-3 py-2 text-xs text-zinc-500">
+          <div className="flex w-[400px] shrink-0 flex-col border-l border-border">
+            <div className="border-b border-border px-3 py-2 text-xs text-muted-foreground">
               live output
             </div>
             <div className="flex-1">
               <AgentTerminal agentId={task.agent_id} />
             </div>
             {/* stdin */}
-            <div className="border-t border-zinc-800 p-2">
-              <div className="flex gap-1">
-                <span className="py-1 text-xs text-zinc-600">&gt;</span>
+            <div className="border-t border-border p-2">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground font-mono">&gt;</span>
                 <input
                   ref={inputRef}
                   value={stdinInput}
                   onChange={(e) => setStdinInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleStdinSend()}
                   placeholder="agent에 입력..."
-                  className="flex-1 bg-transparent text-xs text-zinc-300 placeholder-zinc-700 outline-none"
+                  className="flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground outline-none"
                 />
               </div>
             </div>
