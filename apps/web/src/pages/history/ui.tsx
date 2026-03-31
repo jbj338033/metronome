@@ -3,35 +3,12 @@ import { Link } from 'react-router'
 import { Clock } from 'lucide-react'
 import { api } from '@/shared/api/client'
 import { useTaskStore } from '@/entities/task/model/store'
-import { StatusIcon } from '@/shared/lib/status'
+import { StatusIcon, pipelineStatusMap } from '@/shared/lib/status'
+import { formatRelativeTime, formatDuration } from '@/shared/lib/format'
+import { PageHeader } from '@/shared/ui/page-header'
+import { EmptyState } from '@/shared/ui/empty-state'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
 import type { PipelineRun } from '@metronome/types'
-
-const statusMap: Record<string, string> = {
-  running: 'in_progress',
-  completed: 'completed',
-  failed: 'failed',
-  cancelled: 'cancelled',
-  interrupted: 'interrupted',
-}
-
-function formatTime(iso: string) {
-  const d = new Date(iso + 'Z')
-  const now = Date.now()
-  const ms = now - d.getTime()
-  if (ms < 60_000) return 'just now'
-  if (ms < 3600_000) return `${Math.floor(ms / 60_000)}m ago`
-  if (ms < 86400_000) return `${Math.floor(ms / 3600_000)}h ago`
-  return d.toLocaleDateString()
-}
-
-function formatDuration(start: string, end: string | null) {
-  if (!end) return '—'
-  const ms = new Date(end + 'Z').getTime() - new Date(start + 'Z').getTime()
-  const s = Math.floor(ms / 1000)
-  if (s < 60) return `${s}s`
-  return `${Math.floor(s / 60)}m ${s % 60}s`
-}
 
 export function HistoryPage() {
   const [runs, setRuns] = useState<PipelineRun[]>([])
@@ -45,21 +22,17 @@ export function HistoryPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <Tabs defaultValue="runs" className="flex h-full flex-col">
-        <div className="flex items-center gap-4 border-b border-border px-6 py-3">
-          <h1 className="text-sm font-semibold">History</h1>
-          <TabsList className="ml-auto h-7">
-            <TabsTrigger value="runs" className="text-xs px-2.5 h-6">pipeline runs</TabsTrigger>
-            <TabsTrigger value="tasks" className="text-xs px-2.5 h-6">tasks</TabsTrigger>
+      <Tabs defaultValue="runs" className="flex h-full flex-col gap-0">
+        <PageHeader title="History">
+          <TabsList className="h-7">
+            <TabsTrigger value="runs" className="text-[13px] px-2.5 h-7">pipeline runs</TabsTrigger>
+            <TabsTrigger value="tasks" className="text-[13px] px-2.5 h-7">tasks</TabsTrigger>
           </TabsList>
-        </div>
+        </PageHeader>
 
         <TabsContent value="runs" className="flex-1 overflow-auto mt-0">
           {completedRuns.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full gap-3">
-              <Clock size={32} strokeWidth={1} className="text-muted-foreground/40" />
-              <p className="text-sm text-muted-foreground">no runs yet</p>
-            </div>
+            <EmptyState icon={Clock} title="no runs yet" description="completed pipeline runs will appear here" />
           ) : (
             completedRuns.map((run) => {
               const input = JSON.parse(run.input) as { prompt: string }
@@ -67,17 +40,17 @@ export function HistoryPage() {
                 <Link
                   key={run.id}
                   to={`/live/${run.id}`}
-                  className="flex items-center gap-3 border-b border-border px-6 py-3 hover:bg-accent/30 transition-colors"
+                  className="flex items-center gap-3 border-b border-border px-6 py-3.5 hover:bg-surface-1 transition-colors"
                 >
-                  <StatusIcon status={statusMap[run.status] || 'pending'} className="size-4" />
+                  <StatusIcon status={pipelineStatusMap[run.status] || 'pending'} className="size-3.5" />
                   <div className="flex-1 min-w-0">
-                    <div className="truncate text-sm text-foreground">{input.prompt}</div>
-                    <div className="flex gap-2 mt-0.5 text-xs text-muted-foreground">
+                    <div className="truncate text-sm font-medium text-foreground">{input.prompt}</div>
+                    <div className="flex gap-2 mt-0.5 text-[13px] text-muted-foreground">
                       <span>{run.pipeline_id === '__orchestrated' ? 'auto' : run.pipeline_id}</span>
                       <span>{formatDuration(run.created_at, run.ended_at)}</span>
                     </div>
                   </div>
-                  <span className="text-xs text-muted-foreground">{formatTime(run.created_at)}</span>
+                  <span className="text-xs text-muted-foreground">{formatRelativeTime(run.created_at)}</span>
                 </Link>
               )
             })
@@ -86,24 +59,21 @@ export function HistoryPage() {
 
         <TabsContent value="tasks" className="flex-1 overflow-auto mt-0">
           {tasks.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full gap-3">
-              <Clock size={32} strokeWidth={1} className="text-muted-foreground/40" />
-              <p className="text-sm text-muted-foreground">no tasks yet</p>
-            </div>
+            <EmptyState icon={Clock} title="no tasks yet" description="tasks will appear here as they are created" />
           ) : (
             tasks.map((task) => (
               <div
                 key={task.id}
-                className="flex items-center gap-3 border-b border-border px-6 py-2.5"
+                className="flex items-center gap-3 border-b border-border px-6 py-3.5 hover:bg-surface-1 transition-colors"
               >
                 <StatusIcon status={task.status} className="size-3.5" />
-                <span className="flex-1 truncate text-sm text-foreground">{task.title}</span>
+                <span className="flex-1 truncate text-sm font-medium text-foreground">{task.title}</span>
                 {task.total_tokens > 0 && (
-                  <span className="font-mono text-xs text-muted-foreground">
+                  <span className="font-mono text-xs tabular-nums text-muted-foreground">
                     {(task.total_tokens / 1000).toFixed(1)}k
                   </span>
                 )}
-                <span className="text-xs text-muted-foreground">{formatTime(task.created_at)}</span>
+                <span className="text-xs text-muted-foreground">{formatRelativeTime(task.created_at)}</span>
               </div>
             ))
           )}
