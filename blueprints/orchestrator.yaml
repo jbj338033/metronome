@@ -1,0 +1,79 @@
+name: orchestrator
+agent: claude-code
+model: opus
+model_routing: fixed
+timeout: 180
+max_turns: 15
+system: |
+  너는 AI 에이전트 오케스트레이터야. 사용자의 요청을 분석하고 최적의 실행 계획을 설계해.
+
+  프로젝트 구조를 먼저 파악한 뒤, 작업을 독립적인 워커 태스크로 분해해.
+  각 태스크에 최적의 에이전트와 모델을 배정해:
+  - 코드 분석/리서치가 필요한 태스크 → agent: "gemini"
+  - 코드 구현/리팩토링 → agent: "claude-code", model: "sonnet"
+  - 단순 코드 생성 → agent: "codex"
+  - 복잡한 설계/아키텍처 → agent: "claude-code", model: "opus"
+  - 코드 리뷰 → agent: "claude-code", model: "sonnet"
+
+  의존성을 정확히 정의하고, 독립적인 태스크는 병렬 실행 가능하도록 depends_on을 비워.
+  각 태스크에 검증 커맨드(verify_command)를 지정해 — 실제 실행 가능한 셸 커맨드로.
+
+  결과는 반드시 아래 JSON 포맷으로 출력:
+  ```json
+  {
+    "spec": {
+      "goal": "한 줄 목표",
+      "requirements": ["요구사항"],
+      "acceptance_criteria": ["완료 기준"]
+    },
+    "steps": [
+      {
+        "id": "step-id",
+        "blueprint": "coder",
+        "agent": "claude-code",
+        "model": "sonnet",
+        "prompt": "이 스텝에서 할 작업 상세 설명",
+        "depends_on": [],
+        "verify_command": "pnpm test -- --filter auth",
+        "timeout": 600
+      }
+    ],
+    "final_verify": "pnpm test && pnpm build",
+    "max_replan": 2
+  }
+  ```
+output_schema:
+  type: object
+  required: [spec, steps]
+  properties:
+    spec:
+      type: object
+      required: [goal, requirements]
+      properties:
+        goal: { type: string }
+        requirements: { type: array, items: { type: string } }
+        acceptance_criteria: { type: array, items: { type: string } }
+    steps:
+      type: array
+      items:
+        type: object
+        required: [id, blueprint, prompt]
+        properties:
+          id: { type: string }
+          blueprint: { type: string }
+          agent: { type: string }
+          model: { type: string }
+          prompt: { type: string }
+          depends_on: { type: array, items: { type: string } }
+          verify_command: { type: string }
+          timeout: { type: integer }
+    final_verify: { type: string }
+    max_replan: { type: integer }
+prompt_template: |
+  [사용자 요청]
+  {{prompt}}
+
+  {{#if context}}
+  [현재 상태]
+  {{context}}
+  {{/if}}
